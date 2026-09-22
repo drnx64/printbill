@@ -56,7 +56,7 @@ lib/                — Vendored libraries (pdf.js, jszip, mammoth, html2canvas)
 1. User drops/selects files → `handleFiles()` in events.js
 2. `processFilesAsync()` → `processUploadedFileAsync()` per file
 3. PDF: `readPdfPageCountAsync()` via pdf.js → detects paper size by page dimensions
-4. DOCX: `readDocxPageCountAsync()` via mammoth + JSZip → uses metadata, page breaks, or text heuristics
+4. DOCX: `analyzeDocxAsync()` via JSZip + mammoth → page count from `docProps/app.xml` metadata, page-break markers, or text heuristic (no rendering); paper size from `w:pgSz`
 5. Items added to `state.fileItems`, table row rendered, totals updated
 
 ## Order Placement Flow

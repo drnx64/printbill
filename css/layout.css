@@ -171,7 +171,7 @@ input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
 
 @media (min-width: 1024px) {
   .main-content {
-    grid-template-columns: 50% 50%;
+    grid-template-columns: 56% 44%;
     align-items: start;
     gap: 20px;
     padding: 24px;
@@ -180,20 +180,21 @@ input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
 
 @media (min-width: 1440px) {
   .main-content {
-    grid-template-columns: 46% 54%;
+    grid-template-columns: 54% 46%;
     max-width: 1600px;
     gap: 24px;
   }
 }
 
 /* ─── Left & Right Panels ─── */
-.left-panel { display: flex; flex-direction: column; gap: 16px; }
+.left-panel { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
 .right-panel {
   position: sticky;
   top: 80px;
   max-height: calc(100vh - 96px);
   overflow-y: auto;
+  min-width: 0;
   display: none;
   animation: fade-in 0.8s ease backwards;
   animation-delay: 0.4s;

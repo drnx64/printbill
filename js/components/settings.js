@@ -21,7 +21,10 @@ async function persistSettingsToStorage() {
     writeDb(STORAGE_KEYS.pricingKMode, state.pricingKMode),
     writeDb(STORAGE_KEYS.cumulativeStats, state.cumulativeStats),
     writeDb(STORAGE_KEYS.shopInfo, state.shopInfo),
-    writeDb(STORAGE_KEYS.fileItems, state.fileItems),
+    writeDb(STORAGE_KEYS.fileItems, state.fileItems.map((i) => {
+      const { _processing, _processingStage, _processingPct, ...rest } = i;
+      return rest;
+    })),
     writeDb(STORAGE_KEYS.qrCode, state.qrCode),
     writeDb(STORAGE_KEYS.orderTemplates, state.orderTemplates),
     writeDb(STORAGE_KEYS.pricingVersion, PRICING_VERSION),

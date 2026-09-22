@@ -20,13 +20,13 @@ function showModal(options = {}) {
   }
 
   titleEl.textContent = options.title || "Notification";
-  
+
   if (options.bodyHtml) {
     bodyEl.innerHTML = options.bodyHtml;
   } else {
     bodyEl.textContent = options.body || "";
   }
-  
+
   footerEl.innerHTML = "";
 
   const type = options.type || "info"; // info, confirm, danger
@@ -70,12 +70,12 @@ function showProcessing(message = "Processing...") {
   const msgEl = el("processing-message");
   const spinner = el("processing-spinner");
   const successIcon = el("processing-success-icon");
-  
+
   if (overlay && msgEl) {
     msgEl.textContent = message;
     if (spinner) spinner.style.display = "block";
     if (successIcon) successIcon.style.display = "none";
-    
+
     overlay.classList.add("active");
     overlay.setAttribute("aria-hidden", "false");
   }
@@ -93,7 +93,7 @@ function updateProcessingMessage(message, isSuccess = false) {
       msgEl.textContent = message;
       msgEl.style.opacity = "1";
       msgEl.style.transform = "translateY(0)";
-      
+
       if (isSuccess) {
         if (spinner) spinner.style.display = "none";
         if (successIcon) successIcon.style.display = "flex";
@@ -123,9 +123,9 @@ function updateProcessingProgress(current, total, statusText) {
   const bar = el("progress-bar-fill");
   const percentText = el("progress-percent");
   const statusEl = el("progress-status-text");
-  
+
   const percent = Math.round((current / total) * 100);
-  
+
   if (bar) bar.style.width = `${percent}%`;
   if (percentText) percentText.textContent = `${percent}%`;
   if (statusEl && statusText) statusEl.textContent = statusText;
@@ -146,7 +146,7 @@ function hideProcessingProgress() {
 function bindModalEvents() {
   const closeBtn = el("global-modal-close");
   const overlay = el("global-modal-overlay");
-  
+
   if (closeBtn) closeBtn.addEventListener("click", closeModal);
   if (overlay) {
     overlay.addEventListener("click", (e) => {
@@ -167,7 +167,7 @@ function setStatus(text, type = "ready") {
 
   span.textContent = text;
   dot.className = "status-dot";
-  
+
   if (type === "analyzing") {
     dot.style.background = "var(--blue)";
     dot.classList.add("pulse");
@@ -211,8 +211,10 @@ function showToast(message, type = "success") {
   if (!container) return;
 
   const icons = {
-    success: '<svg class="toast-icon success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>',
-    error: '<svg class="toast-icon error" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    success:
+      '<svg class="toast-icon success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>',
+    error:
+      '<svg class="toast-icon error" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
     info: '<svg class="toast-icon info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
   };
 
@@ -270,15 +272,17 @@ function refreshItemRow(id) {
     : `<span class="file-name-text clickable" data-preview-id="${id}" title="${item.fileName} — click to preview">${item.fileName}</span>`;
 
   const progressBarHtml = item._processing
-    ? '<div class="row-progress"><div class="row-progress-fill"></div></div>'
+    ? `<div class="row-progress"><div class="row-progress-fill" style="width:${item._processingPct || 0}%"></div></div><div class="row-stage">${item._processingStage || "0%"}</div>`
     : "";
 
-  const paperBtns = PAPER_SIZES.map((s) =>
-    `<button type="button" class="seg-btn${item.paperSize === s ? " active" : ""}" data-id="${id}" data-field="paperSize" data-value="${s}" title="${PAPER_SIZE_LABELS[s]} paper">${PAPER_SIZE_LABELS[s]}</button>`
+  const paperBtns = PAPER_SIZES.map(
+    (s) =>
+      `<button type="button" class="seg-btn${item.paperSize === s ? " active" : ""}" data-id="${id}" data-field="paperSize" data-value="${s}" title="${PAPER_SIZE_LABELS[s]} paper">${PAPER_SIZE_LABELS[s]}</button>`,
   ).join("");
 
-  const modeBtns = COLOR_MODES.map((m) =>
-    `<button type="button" class="seg-btn${item.colorMode === m || (m === "color_small" && item.colorMode === "color") ? " active" : ""}" data-id="${id}" data-field="colorMode" data-value="${m}" title="${COLOR_MODE_LONG_LABELS[m]}">${COLOR_MODE_SHORT[m]}</button>`
+  const modeBtns = COLOR_MODES.map(
+    (m) =>
+      `<button type="button" class="seg-btn${item.colorMode === m || (m === "color_small" && item.colorMode === "color") ? " active" : ""}" data-id="${id}" data-field="colorMode" data-value="${m}" title="${COLOR_MODE_LONG_LABELS[m]}">${COLOR_MODE_SHORT[m]}</button>`,
   ).join("");
 
   tr.innerHTML = `
@@ -303,7 +307,7 @@ function refreshItemRow(id) {
         data-id="${id}" data-field="copies" />
     </td>
     <td class="total-cell" id="total-${id}">${formatPeso(rowTotal)}</td>
-    <td>
+    <td class="remove-cell">
       <button class="remove-btn" data-id="${id}" title="Remove item">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -318,14 +322,18 @@ function buildMetaPills(item) {
   } else {
     const isDocx = item.fileExt === "docx" || item.fileExt === "doc";
     if (isDocx) {
-      pills.push('<span class="meta-pill pill-warn" title="DOCX page counts are estimates — convert to PDF for accuracy">⚠ Approx — use PDF</span>');
+      pills.push(
+        '<span class="meta-pill pill-warn" title="DOCX page counts are estimates — convert to PDF for accuracy">⚠ Approx — use PDF</span>',
+      );
     }
     if (item.needsPageEntry) {
       pills.push('<span class="meta-pill pill-warn">⚠ Enter pages</span>');
     } else if (item.isPageExact) {
       pills.push('<span class="meta-pill pill-exact">● Exact</span>');
     } else if (!isDocx) {
-      pills.push('<span class="meta-pill pill-estimated" title="Estimated from file size">~Est.</span>');
+      pills.push(
+        '<span class="meta-pill pill-estimated" title="Estimated from file size">~Est.</span>',
+      );
     }
   }
   return pills.join("");
@@ -368,7 +376,8 @@ function removeItemFromState(id) {
 
 function addManualItem() {
   const id = state.nextItemId++;
-  const copies = parseInt(el("default-copies")?.value) || state.settings.defaultCopies;
+  const copies =
+    parseInt(el("default-copies")?.value) || state.settings.defaultCopies;
   const colorMode = state.lastColorMode || "bw";
   const paperSize = state.lastPaperSize || "short";
   const item = {
@@ -482,14 +491,23 @@ function updateExpressCard() {
   const tableContainer = el("file-table-container");
   if (!card) return;
 
-  const isExpress = state.settings.isExpressMode && state.fileItems.length === 1;
+  const isExpress =
+    state.settings.isExpressMode && state.fileItems.length === 1;
   card.style.display = isExpress ? "block" : "none";
-  if (tableContainer) tableContainer.style.display = isExpress ? "none" : (state.fileItems.length > 0 ? "block" : "none");
+  if (tableContainer)
+    tableContainer.style.display = isExpress
+      ? "none"
+      : state.fileItems.length > 0
+        ? "block"
+        : "none";
 
   if (isExpress) {
     const item = state.fileItems[0];
     const total = computeItemTotal(item);
-    const sizeLabel = { long: "Long (8.5×14)", short: "Short (8.5×11)", a4: "A4" }[item.paperSize] || "Short";
+    const sizeLabel =
+      { long: "Long (8.5×14)", short: "Short (8.5×11)", a4: "A4" }[
+        item.paperSize
+      ] || "Short";
     const modeLabel = COLOR_MODE_LONG_LABELS[item.colorMode] || "B&W";
 
     const content = el("express-card-content");
@@ -536,6 +554,32 @@ function refreshTotalCell(id) {
     cell.textContent = newTotal;
     cell.classList.add("total-flash");
     setTimeout(() => cell.classList.remove("total-flash"), 200);
+  }
+}
+
+// Excel-style autofit: Total column width = widest total value + cell padding
+function autofitTotalColumn() {
+  const table = document.querySelector(".file-table");
+  if (!table) return;
+
+  const probe = document.createElement("span");
+  probe.style.cssText =
+    "position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;" +
+    "font-family:var(--font-mono-alt);font-size:13px;font-weight:600;";
+  document.body.appendChild(probe);
+
+  let max = 0;
+  for (const cell of table.querySelectorAll(".total-cell")) {
+    probe.textContent = cell.textContent;
+    if (probe.offsetWidth > max) max = probe.offsetWidth;
+  }
+  document.body.removeChild(probe);
+
+  table.style.setProperty("--total-col-w", `${Math.max(56, Math.ceil(max) + 18)}px`);
+
+  if (!window._totalColFontHooked && document.fonts) {
+    window._totalColFontHooked = true;
+    document.fonts.ready.then(() => autofitTotalColumn());
   }
 }
 

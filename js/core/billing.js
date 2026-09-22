@@ -98,6 +98,7 @@ function updateTotals() {
   if (subtotalEl) subtotalEl.textContent = formatPeso(totals.subtotal);
   if (collectEl) collectEl.textContent = formatPeso(totals.grandTotal);
 
+  autofitTotalColumn();
   renderDiscountTiers();
   updateInvoicePreview();
 }
