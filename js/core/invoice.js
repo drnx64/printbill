@@ -3,6 +3,7 @@
  */
 
 function updateInvoicePreview() {
+  applyUnitPriceVisibility();
   updateInvoiceHeader();
   updateInvoiceLineItems();
   updateInvoiceTotals();
@@ -36,6 +37,12 @@ function updateInvoicePreview() {
   persistSettingsToStorage();
 }
 
+function applyUnitPriceVisibility() {
+  const preview = el("invoice-preview");
+  if (!preview) return;
+  preview.classList.toggle("hide-unit-price", !state.settings.showUnitPrice);
+}
+
 function updateInvoiceHeader() {
   el("inv-ref").textContent = `REF# ${state.invoiceRef}`;
   el("inv-date").textContent = `DATE: ${state.invoiceDate}`;
@@ -56,10 +63,10 @@ function updateInvoiceLineItems() {
     const total = computeItemTotal(item);
     const tr = document.createElement("tr");
 
-    const sizeLabel =
-      { long: "Long", short: "Short", a4: "A4" }[item.paperSize] || "Short";
+    const sizeLabel = PAPER_SIZE_LABELS[item.paperSize] || "Short";
     const modeMap = {
       bw: { label: "B&W", color: "var(--text-3)" },
+      bw_image: { label: "B&W+Img", color: "var(--text-2)" },
       color_small: { label: "Small Color", color: "var(--blue)" },
       color_partial: { label: "Partial Color", color: "var(--amber)" },
       color_full: { label: "Full Color", color: "var(--accent)" },
@@ -73,7 +80,7 @@ function updateInvoiceLineItems() {
       <td class="inv-mode"><span style="color:${modeInfo.color};font-weight:600">${modeInfo.label}</span></td>
       <td class="inv-num">${item.pages}</td>
       <td class="inv-num">${item.copies}</td>
-      <td class="inv-price">${formatPeso(item.unitPrice)}</td>
+      <td class="inv-price inv-unit-col">${formatPeso(item.unitPrice)}</td>
       <td class="inv-total">${formatPeso(total)}</td>
     `;
     tbody.appendChild(tr);
@@ -240,6 +247,54 @@ function printInvoice() {
   window.print();
 }
 
+function copyInvoiceAsText() {
+  try {
+    const lines = [];
+    lines.push(`INVOICE — REF# ${state.invoiceRef}`);
+    lines.push(`Date: ${state.invoiceDate}`);
+    lines.push("");
+
+    for (const item of state.fileItems) {
+      const sizeLabel = PAPER_SIZE_LABELS[item.paperSize] || "Short";
+      const modeLabel = COLOR_MODE_LONG_LABELS[item.colorMode] || "B&W";
+      const total = computeItemTotal(item);
+      const unitPart = state.settings.showUnitPrice ? ` @ ${formatPeso(item.unitPrice)}/pg` : "";
+      lines.push(`${item.fileName} | ${sizeLabel} | ${modeLabel} | ${item.pages}pg × ${item.copies}qty${unitPart} | ${formatPeso(total)}`);
+    }
+
+    lines.push("");
+    const totals = computeGrandTotal();
+    lines.push(`Subtotal: ${formatPeso(totals.subtotal)}`);
+
+    if (totals.activeTier) {
+      lines.push(`Discount (${totals.activeTier.discountPct}%): −${formatPeso(totals.discountAmt)}`);
+      lines.push(`Discounted: ${formatPeso(totals.discountedPrice)}`);
+    }
+
+    if (state.settings.isTaxEnabled) {
+      lines.push(`Tax (${state.settings.taxRate}%): ${formatPeso(totals.taxAmt)}`);
+    }
+
+    lines.push(`Grand Total: ${formatPeso(totals.grandTotal)}`);
+
+    const remarks = el("remarks")?.value.trim();
+    if (remarks) {
+      lines.push("");
+      lines.push(`Remarks: ${remarks}`);
+    }
+
+    const text = lines.join("\n");
+
+    navigator.clipboard.writeText(text).then(() => {
+      showToast("Copied invoice as text!", "success");
+    }).catch(() => {
+      showToast("Failed to copy text", "error");
+    });
+  } catch {
+    showToast("Failed to copy as text", "error");
+  }
+}
+
 function startNewInvoice() {
   clearAllInvoiceData();
   state.invoiceRef = generateRef();
@@ -253,6 +308,8 @@ function clearAllInvoiceData() {
   state.nextItemId = 1;
   el("file-table-body").innerHTML = "";
   el("file-table-container").style.display = "none";
+  const expressCard = el("express-card");
+  if (expressCard) expressCard.style.display = "none";
   showFullDropZone();
   el("remarks").value = "";
   updateTotals();
@@ -280,7 +337,8 @@ function placeOrder() {
     bodyHtml: `
       <div class="field-row">
         <label class="field-label" for="customer-name-input">Enter customer name to proceed</label>
-        <input type="text" id="customer-name-input" class="field-input" placeholder="e.g. Juan Dela Cruz" autofocus />
+        <input type="text" id="customer-name-input" class="field-input" placeholder="e.g. Juan Dela Cruz" list="customer-names-list" autofocus />
+        <datalist id="customer-names-list"></datalist>
       </div>
       <div style="margin-top:12px;font-size:12px;color:var(--text-2)">Total to collect: <span style="color:var(--text-1);font-weight:700">${formatPeso(totals.grandTotal)}</span></div>
     `,
@@ -315,6 +373,14 @@ function placeOrder() {
     updateProcessingProgress(30, 100, "Saving to history...");
     saveInvoiceToRecentHistory();
 
+    if (state.customerName && state.customerName !== "Walk-in") {
+      const names = await readDb(STORAGE_KEYS.customerNames, []);
+      if (!names.includes(state.customerName)) {
+        names.push(state.customerName);
+        await writeDb(STORAGE_KEYS.customerNames, names);
+      }
+    }
+
     updateProcessingProgress(40, 100, "Syncing to Cloud...");
     await sendToDiscordWebhookAsync(state.customerName, state.invoiceRef, totals);
 
@@ -344,8 +410,8 @@ function placeOrder() {
     }, 800);
   }
 
-  // Auto-focus the name input and bind Enter key
-  setTimeout(() => {
+  // Auto-focus the name input, bind Enter key, and populate autocomplete
+  setTimeout(async () => {
     const input = el("customer-name-input");
     if (input) {
       input.focus();
@@ -355,6 +421,11 @@ function placeOrder() {
           executeOrderPlacement();
         }
       });
+      const names = await readDb(STORAGE_KEYS.customerNames, []);
+      const datalist = el("customer-names-list");
+      if (datalist && names.length > 0) {
+        datalist.innerHTML = names.map(n => `<option value="${n}">`).join("");
+      }
     }
   }, 100);
 }
@@ -364,7 +435,7 @@ async function sendToDiscordWebhookAsync(customerName, ref, totals) {
 
   const itemsDescription = state.fileItems.map(i => {
     const paper = i.paperSize.toUpperCase();
-    const mode = i.colorMode.replace("color_", "").replace("bw", "B&W").toUpperCase();
+    const mode = (COLOR_MODE_LONG_LABELS[i.colorMode] || "B&W").toUpperCase();
     return `- **${i.fileName}** (${paper}, ${mode}): ${i.pages}pg x ${i.copies}qty = ${formatPeso(i.unitPrice * i.pages * i.copies)}`;
   }).join("\n");
 

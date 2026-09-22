@@ -61,6 +61,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
       </button>
 
+      <!-- Daily Summary -->
+      <button class="icon-btn" id="btn-daily-summary" aria-label="Daily Summary" title="Daily Summary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </button>
+
       <!-- Settings -->
       <button class="icon-btn" id="btn-settings-toggle" aria-label="Settings" title="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -92,8 +97,8 @@
             <div class="drop-zone-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             </div>
-            <div class="drop-zone-title">Drop PDF or DOCX files here</div>
-            <div class="drop-zone-sub">Pages counted automatically · Set copies per document</div>
+            <div class="drop-zone-title">Drop PDF files here</div>
+            <div class="drop-zone-sub">Pages counted automatically · DOCX accepted but convert to PDF for accurate counts</div>
           </div>
 
           <!-- Compact add more (hidden until first file) -->
@@ -113,10 +118,10 @@
                   <tr>
                     <th style="width:32px">#</th>
                     <th>File Name</th>
-                    <th style="width:90px">Paper</th>
-                    <th style="width:90px">Color</th>
-                    <th style="width:72px">Pages</th>
-                    <th style="width:72px">Copies</th>
+                    <th style="width:115px">Paper</th>
+                    <th style="width:175px">Color</th>
+                    <th style="width:64px">Pages</th>
+                    <th style="width:64px">Copies</th>
                     <th style="width:80px">Total</th>
                     <th style="width:36px"></th>
                   </tr>
@@ -145,6 +150,10 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
                 Reset Copies
               </button>
+              <button class="btn-secondary" id="btn-apply-all" aria-label="Apply first row's paper and color to all rows">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 11"/></svg>
+                Apply to All
+              </button>
               <button class="btn-secondary danger-hover" id="btn-clear-table" aria-label="Clear all items">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
                 Clear Invoice
@@ -153,6 +162,17 @@
           </div>
         </div>
       </section>
+
+      <!-- Express Card (single-file quick view, hidden by default) -->
+      <div id="express-card" class="section-card" style="display:none">
+        <div class="section-header">
+          <span class="section-num" style="color:var(--accent)">⚡</span>
+          <span class="section-title">Express Mode</span>
+        </div>
+        <div class="section-body">
+          <div id="express-card-content"></div>
+        </div>
+      </div>
 
       <!-- Section 02: Remarks & Finalize -->
       <section class="section-card" id="step-export">
@@ -176,6 +196,10 @@
             <button class="btn-ghost" id="btn-copy-image" title="Copy invoice as image (Ctrl+Shift+C)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               Copy as Image
+            </button>
+            <button class="btn-ghost" id="btn-copy-text" title="Copy invoice as text">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              Copy as Text
             </button>
             <button class="btn-ghost" id="btn-print" aria-label="Print invoice">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
@@ -225,10 +249,10 @@
               <tr>
                 <th>Document</th>
                 <th class="right" style="width:60px">Paper</th>
-                <th class="right" style="width:50px">Mode</th>
+                <th class="right" style="width:64px">Mode</th>
                 <th class="right" style="width:42px">Pg</th>
                 <th class="right" style="width:42px">Qty</th>
-                <th class="right" style="width:72px">Unit</th>
+                <th class="right inv-unit-col" style="width:72px">Unit</th>
                 <th class="right" style="width:80px">Total</th>
               </tr>
             </thead>
@@ -293,6 +317,31 @@
           </div>
         </div>
       </div>
+
+      <!-- File Preview Container (replaces invoice preview when active) -->
+      <div id="file-preview-container" class="file-preview-container" style="display:none">
+        <div class="file-preview-header">
+          <button class="file-preview-back" id="file-preview-back" title="Back to invoice">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            Invoice
+          </button>
+          <span class="file-preview-title" id="file-preview-title"></span>
+          <button class="file-preview-close" id="file-preview-close" title="Close preview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="file-preview-body" id="file-preview-body"></div>
+        <div class="file-preview-nav" id="file-preview-nav" style="display:none">
+          <button class="file-preview-nav-btn" id="file-preview-prev" title="Previous page">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span class="file-preview-page-info" id="file-preview-page-info">1 / 1</span>
+          <button class="file-preview-nav-btn" id="file-preview-next" title="Next page">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <div class="file-preview-meta" id="file-preview-meta"></div>
+      </div>
     </div>
 
   </main>
@@ -331,6 +380,13 @@
   </div>
 
   <div class="drawer-body" id="history-view">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 12px 8px">
+      <span style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Recent Orders</span>
+      <button class="btn-ghost" id="btn-bulk-mode" style="font-size:11px;padding:4px 8px" title="Toggle bulk selection mode">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Bulk Select
+      </button>
+    </div>
     <div class="history-list" id="history-list">
       <!-- History items will be injected here -->
     </div>
@@ -338,6 +394,25 @@
       <button class="danger-btn" style="width:100%;justify-content:center" id="btn-clear-recent-history">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
         Clear all history
+      </button>
+    </div>
+  </div>
+
+  <!-- Bulk Actions Bar (hidden by default) -->
+  <div id="bulk-actions" class="bulk-actions-bar" style="display:none;position:sticky;bottom:0;background:var(--bg-card);border-top:1px solid var(--border);padding:8px 12px;justify-content:space-between;align-items:center;z-index:10">
+    <span id="bulk-count" style="font-size:12px;color:var(--text-2)">0 selected</span>
+    <div style="display:flex;gap:6px">
+      <button class="btn-secondary" id="bulk-mark-done" style="font-size:11px;padding:6px 10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>
+        Mark Done
+      </button>
+      <button class="btn-secondary" id="bulk-mark-paid" style="font-size:11px;padding:6px 10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Mark Paid
+      </button>
+      <button class="btn-secondary danger-hover" id="bulk-delete" style="font-size:11px;padding:6px 10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+        Delete
       </button>
     </div>
   </div>
@@ -361,27 +436,33 @@
         <tbody>
           <tr>
             <th class="mode-label">B&amp;W</th>
-            <td><input type="number" class="matrix-input" id="price-bw-long"  value="" min="0" step="0.50" data-mode="bw"    data-size="long" /></td>
-            <td><input type="number" class="matrix-input" id="price-bw-short" value="" min="0" step="0.50" data-mode="bw"    data-size="short" /></td>
-            <td><input type="number" class="matrix-input" id="price-bw-a4"    value="" min="0" step="0.50" data-mode="bw"    data-size="a4" /></td>
+            <td><input type="number" class="matrix-input" id="price-bw-long"  value="" min="0" step="0.25" data-mode="bw"    data-size="long" /></td>
+            <td><input type="number" class="matrix-input" id="price-bw-short" value="" min="0" step="0.25" data-mode="bw"    data-size="short" /></td>
+            <td><input type="number" class="matrix-input" id="price-bw-a4"    value="" min="0" step="0.25" data-mode="bw"    data-size="a4" /></td>
+          </tr>
+          <tr>
+            <th class="mode-label">B&amp;W + Image</th>
+            <td><input type="number" class="matrix-input" id="price-bw_image-long"  value="" min="0" step="0.25" data-mode="bw_image" data-size="long" /></td>
+            <td><input type="number" class="matrix-input" id="price-bw_image-short" value="" min="0" step="0.25" data-mode="bw_image" data-size="short" /></td>
+            <td><input type="number" class="matrix-input" id="price-bw_image-a4"    value="" min="0" step="0.25" data-mode="bw_image" data-size="a4" /></td>
           </tr>
           <tr>
             <th class="mode-label color-mode">Small Color</th>
-            <td><input type="number" class="matrix-input" id="price-color_small-long"  value="" min="0" step="0.50" data-mode="color_small" data-size="long" /></td>
-            <td><input type="number" class="matrix-input" id="price-color_small-short" value="" min="0" step="0.50" data-mode="color_small" data-size="short" /></td>
-            <td><input type="number" class="matrix-input" id="price-color_small-a4"    value="" min="0" step="0.50" data-mode="color_small" data-size="a4" /></td>
+            <td><input type="number" class="matrix-input" id="price-color_small-long"  value="" min="0" step="0.25" data-mode="color_small" data-size="long" /></td>
+            <td><input type="number" class="matrix-input" id="price-color_small-short" value="" min="0" step="0.25" data-mode="color_small" data-size="short" /></td>
+            <td><input type="number" class="matrix-input" id="price-color_small-a4"    value="" min="0" step="0.25" data-mode="color_small" data-size="a4" /></td>
           </tr>
           <tr>
             <th class="mode-label color-mode">Partial Color</th>
-            <td><input type="number" class="matrix-input" id="price-color_partial-long"  value="" min="0" step="0.50" data-mode="color_partial" data-size="long" /></td>
-            <td><input type="number" class="matrix-input" id="price-color_partial-short" value="" min="0" step="0.50" data-mode="color_partial" data-size="short" /></td>
-            <td><input type="number" class="matrix-input" id="price-color_partial-a4"    value="" min="0" step="0.50" data-mode="color_partial" data-size="a4" /></td>
+            <td><input type="number" class="matrix-input" id="price-color_partial-long"  value="" min="0" step="0.25" data-mode="color_partial" data-size="long" /></td>
+            <td><input type="number" class="matrix-input" id="price-color_partial-short" value="" min="0" step="0.25" data-mode="color_partial" data-size="short" /></td>
+            <td><input type="number" class="matrix-input" id="price-color_partial-a4"    value="" min="0" step="0.25" data-mode="color_partial" data-size="a4" /></td>
           </tr>
           <tr>
             <th class="mode-label color-mode">Full Color</th>
-            <td><input type="number" class="matrix-input" id="price-color_full-long"  value="" min="0" step="0.50" data-mode="color_full" data-size="long" /></td>
-            <td><input type="number" class="matrix-input" id="price-color_full-short" value="" min="0" step="0.50" data-mode="color_full" data-size="short" /></td>
-            <td><input type="number" class="matrix-input" id="price-color_full-a4"    value="" min="0" step="0.50" data-mode="color_full" data-size="a4" /></td>
+            <td><input type="number" class="matrix-input" id="price-color_full-long"  value="" min="0" step="0.25" data-mode="color_full" data-size="long" /></td>
+            <td><input type="number" class="matrix-input" id="price-color_full-short" value="" min="0" step="0.25" data-mode="color_full" data-size="short" /></td>
+            <td><input type="number" class="matrix-input" id="price-color_full-a4"    value="" min="0" step="0.25" data-mode="color_full" data-size="a4" /></td>
           </tr>
         </tbody>
       </table>
@@ -441,51 +522,27 @@
           <div class="toggle-track"><div class="toggle-thumb"></div></div>
         </label>
       </div>
-    </div>
 
-    <!-- Revenue & Costs -->
-    <div>
-      <div class="drawer-section-title">Revenue &amp; Costs Config</div>
-      
-      <div class="field-row">
-        <label class="field-label" for="sheets-per-ream">Sheets per Ream</label>
-        <input type="number" id="sheets-per-ream" class="field-input" value="500" min="1" step="1" />
-      </div>
-
-      <div style="font-size:11px;color:var(--text-2);margin-bottom:8px">Ream Prices (₱)</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      <div class="toggle-row">
         <div>
-          <label class="field-label" style="font-size:10px" for="ream-price-long">Long</label>
-          <input type="number" id="ream-price-long" class="field-input" value="197" min="0" step="1" />
+          <div class="toggle-label">Show unit price on invoice</div>
+          <div class="toggle-sub">Hide the per-page price column in preview &amp; export</div>
         </div>
+        <label class="toggle-switch" aria-label="Show unit price on invoice">
+          <input type="checkbox" id="show-unit-price" checked />
+          <div class="toggle-track"><div class="toggle-thumb"></div></div>
+        </label>
+      </div>
+
+      <div class="toggle-row">
         <div>
-          <label class="field-label" style="font-size:10px" for="ream-price-short">Short</label>
-          <input type="number" id="ream-price-short" class="field-input" value="164" min="0" step="1" />
+          <div class="toggle-label">Express Mode</div>
+          <div class="toggle-sub">Quick card view for single-file orders</div>
         </div>
-        <div>
-          <label class="field-label" style="font-size:10px" for="ream-price-a4">A4</label>
-          <input type="number" id="ream-price-a4" class="field-input" value="169" min="0" step="1" />
-        </div>
-      </div>
-
-      <div class="field-row">
-        <label class="field-label" for="ink-cost-bottle">Ink Cost (per bottle)</label>
-        <input type="number" id="ink-cost-bottle" class="field-input" value="400" min="0" step="1" />
-      </div>
-      
-      <div class="field-row">
-        <label class="field-label" for="ink-pages-yield">Est. Pages per Bottle</label>
-        <input type="number" id="ink-pages-yield" class="field-input" value="2500" min="1" step="100" />
-      </div>
-
-      <div class="field-row">
-        <label class="field-label" for="elec-kwh-rate">Electricity Rate (₱/kWh)</label>
-        <input type="number" id="elec-kwh-rate" class="field-input" value="14" min="0" step="0.1" />
-      </div>
-
-      <div class="field-row">
-        <label class="field-label" for="printer-wattage">Printer Wattage (Watts)</label>
-        <input type="number" id="printer-wattage" class="field-input" value="50" min="0" step="5" />
+        <label class="toggle-switch" aria-label="Express Mode">
+          <input type="checkbox" id="express-mode" />
+          <div class="toggle-track"><div class="toggle-thumb"></div></div>
+        </label>
       </div>
     </div>
 
@@ -519,6 +576,17 @@
       <button class="add-tier-btn" id="btn-add-tier" style="margin-top:8px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add tier
+      </button>
+    </div>
+
+    <!-- Order Templates -->
+    <div>
+      <div class="drawer-section-title">Order Templates</div>
+      <div style="font-size:11px;color:var(--text-2);margin-bottom:10px">Quick presets for common jobs</div>
+      <div id="template-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      <button class="add-tier-btn" id="btn-add-template" style="margin-top:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Save Current as Template
       </button>
     </div>
 

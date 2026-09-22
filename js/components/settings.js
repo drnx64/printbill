@@ -11,17 +11,22 @@ async function persistSettingsToStorage() {
       shouldRoundUp: state.settings.shouldRoundUp,
       defaultCopies: state.settings.defaultCopies,
       isKMode: state.settings.isKMode,
+      isExpressMode: state.settings.isExpressMode,
+      showUnitPrice: state.settings.showUnitPrice,
       discordWebhookUrl: state.settings.discordWebhookUrl,
       discountTiers: state.discountTiers,
     }),
     writeDb(STORAGE_KEYS.pricing, state.pricing),
     writeDb(STORAGE_KEYS.pricingStandard, state.pricingStandard),
     writeDb(STORAGE_KEYS.pricingKMode, state.pricingKMode),
-    writeDb(STORAGE_KEYS.revenueConfig, state.revenueConfig),
     writeDb(STORAGE_KEYS.cumulativeStats, state.cumulativeStats),
     writeDb(STORAGE_KEYS.shopInfo, state.shopInfo),
     writeDb(STORAGE_KEYS.fileItems, state.fileItems),
     writeDb(STORAGE_KEYS.qrCode, state.qrCode),
+    writeDb(STORAGE_KEYS.orderTemplates, state.orderTemplates),
+    writeDb(STORAGE_KEYS.pricingVersion, PRICING_VERSION),
+    writeDb(STORAGE_KEYS.lastPaperSize, state.lastPaperSize),
+    writeDb(STORAGE_KEYS.lastColorMode, state.lastColorMode),
   ]);
 }
 
@@ -32,22 +37,28 @@ async function loadSettingsFromStorage() {
     pricing,
     pricingStandard,
     pricingKMode,
-    revConfig,
     cumStats,
     savedItems,
     theme,
-    qrCode
+    qrCode,
+    templates,
+    pricingVersion,
+    lastPaperSize,
+    lastColorMode,
   ] = await Promise.all([
     readDb(STORAGE_KEYS.shopInfo),
     readDb(STORAGE_KEYS.settings),
     readDb(STORAGE_KEYS.pricing),
     readDb(STORAGE_KEYS.pricingStandard),
     readDb(STORAGE_KEYS.pricingKMode),
-    readDb(STORAGE_KEYS.revenueConfig),
     readDb(STORAGE_KEYS.cumulativeStats),
     readDb(STORAGE_KEYS.fileItems),
     readDb(STORAGE_KEYS.theme, "dark"),
-    readDb(STORAGE_KEYS.qrCode)
+    readDb(STORAGE_KEYS.qrCode),
+    readDb(STORAGE_KEYS.orderTemplates, []),
+    readDb(STORAGE_KEYS.pricingVersion, 0),
+    readDb(STORAGE_KEYS.lastPaperSize, "short"),
+    readDb(STORAGE_KEYS.lastColorMode, "bw"),
   ]);
 
   if (shopInfo) Object.assign(state.shopInfo, shopInfo);
@@ -59,16 +70,26 @@ async function loadSettingsFromStorage() {
     state.settings.shouldRoundUp = settings.shouldRoundUp ?? false;
     state.settings.defaultCopies = settings.defaultCopies ?? DEFAULT_COPIES;
     state.settings.isKMode = settings.isKMode ?? false;
+    state.settings.isExpressMode = settings.isExpressMode ?? false;
+    state.settings.showUnitPrice = settings.showUnitPrice ?? true;
     state.settings.discordWebhookUrl = settings.discordWebhookUrl ?? "";
     if (settings.discountTiers) state.discountTiers = settings.discountTiers;
   }
 
-  if (pricing) Object.assign(state.pricing, pricing);
-  if (pricingStandard) Object.assign(state.pricingStandard, pricingStandard);
-  if (pricingKMode) Object.assign(state.pricingKMode, pricingKMode);
-  if (revConfig) Object.assign(state.revenueConfig, revConfig);
+  state.lastPaperSize = lastPaperSize || "short";
+  state.lastColorMode = lastColorMode || "bw";
+
+  // Force-apply new default pricing matrix when PRICING_VERSION changes
+  const needsPricingReset = (pricingVersion || 0) < PRICING_VERSION;
+  if (!needsPricingReset) {
+    if (pricingStandard) state.pricingStandard = mergePricing(state.pricingStandard, pricingStandard);
+    if (pricingKMode) state.pricingKMode = mergePricing(state.pricingKMode, pricingKMode);
+    if (pricing) state.pricing = mergePricing(state.pricing, pricing);
+  }
+
   if (cumStats) Object.assign(state.cumulativeStats, cumStats);
   if (qrCode) state.qrCode = qrCode;
+  if (templates && Array.isArray(templates)) state.orderTemplates = templates;
 
   if (savedItems && Array.isArray(savedItems)) {
     state.fileItems = savedItems;
@@ -83,6 +104,20 @@ async function loadSettingsFromStorage() {
   ));
 
   applyTheme(theme);
+}
+
+// Deep-merges saved pricing over defaults so missing modes/sizes (e.g. bw_image) fall back to defaults
+function mergePricing(base, saved) {
+  const merged = JSON.parse(JSON.stringify(base));
+  if (!saved || typeof saved !== "object") return merged;
+  for (const mode of Object.keys(merged)) {
+    if (!saved[mode]) continue;
+    for (const size of Object.keys(merged[mode])) {
+      const v = parseFloat(saved[mode][size]);
+      if (!isNaN(v)) merged[mode][size] = v;
+    }
+  }
+  return merged;
 }
 
 function handleQrUpload(file) {
@@ -103,7 +138,7 @@ function handleQrUpload(file) {
 
       ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, 400, 400);
       const b64 = canvas.toDataURL("image/png");
-      
+
       state.qrCode = b64;
       if (el("qr-preview-img")) el("qr-preview-img").src = b64;
       updateInvoicePreview();
@@ -158,11 +193,11 @@ function toggleKMode(enabled) {
 }
 
 function applyPricingMatrixToUI() {
-  const modes = ["bw", "color_small", "color_partial", "color_full"];
-  for (const mode of modes) {
-    if (el(`price-${mode}-long`)) el(`price-${mode}-long`).value = state.pricing[mode]?.long || 0;
-    if (el(`price-${mode}-short`)) el(`price-${mode}-short`).value = state.pricing[mode]?.short || 0;
-    if (el(`price-${mode}-a4`)) el(`price-${mode}-a4`).value = state.pricing[mode]?.a4 || 0;
+  for (const mode of COLOR_MODES) {
+    for (const size of PAPER_SIZES) {
+      const input = el(`price-${mode}-${size}`);
+      if (input) input.value = state.pricing[mode]?.[size] || 0;
+    }
   }
 }
 
@@ -215,7 +250,7 @@ function refreshDiscountTierHighlights() {
 function updateTierHint(totalPages, activeTier) {
   const hintEl = el("tier-hint");
   if (!hintEl) return;
-  
+
   const nextTier = [...state.discountTiers]
     .sort((a, b) => a.minPages - b.minPages)
     .find((t) => t.minPages > totalPages);
@@ -258,6 +293,9 @@ function resetSettingsToDefaults() {
         shouldRoundUp: false,
         defaultCopies: DEFAULT_COPIES,
         isKMode: false,
+        isExpressMode: false,
+        showUnitPrice: true,
+        discordWebhookUrl: "",
       };
       state.shopInfo = {
         name: "Printing Shop",
@@ -291,15 +329,8 @@ function loadSettingsIntoDrawer() {
   el("tax-enabled").checked = state.settings.isTaxEnabled;
   el("round-up").checked = state.settings.shouldRoundUp;
   el("vat-show-invoice").checked = state.settings.isVatVisibleOnInvoice;
-
-  el("sheets-per-ream").value = state.revenueConfig.sheetsPerReam;
-  el("ream-price-long").value = state.revenueConfig.reamPriceLong;
-  el("ream-price-short").value = state.revenueConfig.reamPriceShort;
-  el("ream-price-a4").value = state.revenueConfig.reamPriceA4;
-  el("ink-cost-bottle").value = state.revenueConfig.inkCostBottle;
-  el("ink-pages-yield").value = state.revenueConfig.inkPagesYield;
-  el("elec-kwh-rate").value = state.revenueConfig.elecKwhRate;
-  el("printer-wattage").value = state.revenueConfig.printerWattage;
+  el("express-mode").checked = state.settings.isExpressMode;
+  if (el("show-unit-price")) el("show-unit-price").checked = state.settings.showUnitPrice;
 
   if (el("discord-webhook")) el("discord-webhook").value = state.settings.discordWebhookUrl || "";
 
@@ -307,6 +338,7 @@ function loadSettingsIntoDrawer() {
 
   applyPricingMatrixToUI();
   renderDiscountTiers();
+  renderTemplates();
 }
 
 function saveSettingsFromDrawer() {
@@ -323,18 +355,9 @@ function saveSettingsFromDrawer() {
   state.settings.isTaxEnabled = el("tax-enabled").checked;
   state.settings.shouldRoundUp = el("round-up").checked;
   state.settings.isVatVisibleOnInvoice = el("vat-show-invoice").checked;
+  state.settings.isExpressMode = el("express-mode").checked;
+  if (el("show-unit-price")) state.settings.showUnitPrice = el("show-unit-price").checked;
   state.settings.discordWebhookUrl = el("discord-webhook") ? el("discord-webhook").value.trim() : "";
-
-  state.revenueConfig = {
-    sheetsPerReam: parseInt(el("sheets-per-ream").value) || 500,
-    reamPriceLong: parseFloat(el("ream-price-long").value) || 0,
-    reamPriceShort: parseFloat(el("ream-price-short").value) || 0,
-    reamPriceA4: parseFloat(el("ream-price-a4").value) || 0,
-    inkCostBottle: parseFloat(el("ink-cost-bottle").value) || 0,
-    inkPagesYield: parseInt(el("ink-pages-yield").value) || 1,
-    elecKwhRate: parseFloat(el("elec-kwh-rate").value) || 0,
-    printerWattage: parseFloat(el("printer-wattage").value) || 0,
-  };
 
   el("tax-rate-sub").textContent = `${state.settings.taxRate}%`;
 
@@ -353,18 +376,103 @@ function applyLoadedSettingsToUI() {
   el("round-up").checked = state.settings.shouldRoundUp;
   el("vat-show-invoice").checked = state.settings.isVatVisibleOnInvoice;
   el("header-kmode-toggle").checked = state.settings.isKMode;
-
-  el("sheets-per-ream").value = state.revenueConfig.sheetsPerReam;
-  el("ream-price-long").value = state.revenueConfig.reamPriceLong;
-  el("ream-price-short").value = state.revenueConfig.reamPriceShort;
-  el("ream-price-a4").value = state.revenueConfig.reamPriceA4;
-  el("ink-cost-bottle").value = state.revenueConfig.inkCostBottle;
-  el("ink-pages-yield").value = state.revenueConfig.inkPagesYield;
-  el("elec-kwh-rate").value = state.revenueConfig.elecKwhRate;
-  el("printer-wattage").value = state.revenueConfig.printerWattage;
+  el("express-mode").checked = state.settings.isExpressMode;
+  if (el("show-unit-price")) el("show-unit-price").checked = state.settings.showUnitPrice;
 
   el("tax-rate-sub").textContent = `${state.settings.taxRate}%`;
   el("tax-rate-row").style.display = state.settings.isTaxEnabled ? "flex" : "none";
   el("vat-show-row").style.display = state.settings.isTaxEnabled ? "flex" : "none";
   applyPricingMatrixToUI();
+}
+
+function renderTemplates() {
+  const container = el("template-list");
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (state.orderTemplates.length === 0) {
+    container.innerHTML = '<div style="font-size:11px;color:var(--text-3);padding:8px 0">No templates saved yet</div>';
+    return;
+  }
+
+  for (let i = 0; i < state.orderTemplates.length; i++) {
+    const t = state.orderTemplates[i];
+    const row = buildElement("div", { className: "tier-row" });
+    const sizeLabel = { long: "Long", short: "Short", a4: "A4" }[t.paperSize] || "Short";
+    const modeLabel = COLOR_MODE_LABELS[t.colorMode] || "B&W";
+    row.innerHTML = `
+      <span class="tier-label" style="flex:1;color:var(--text-1);font-weight:500;font-size:12px">${t.name}</span>
+      <span class="tier-label" style="font-size:10px">${sizeLabel}</span>
+      <span class="tier-label" style="font-size:10px">${modeLabel}</span>
+      <span class="tier-label" style="font-size:10px">${t.defaultCopies}c</span>
+      <button class="tier-remove-btn" data-template="${i}" title="Delete template">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    `;
+    container.appendChild(row);
+  }
+
+  container.addEventListener("click", (e) => {
+    const btn = e.target.closest(".tier-remove-btn");
+    if (btn) {
+      const idx = parseInt(btn.dataset.template);
+      if (!isNaN(idx)) {
+        state.orderTemplates.splice(idx, 1);
+        persistSettingsToStorage();
+        renderTemplates();
+        showToast("Template removed", "info");
+      }
+    }
+  });
+}
+
+function saveCurrentAsTemplate() {
+  const colorButtons = COLOR_MODES.map((m) =>
+    `<button type="button" class="seg-btn${m === "bw" ? " active" : ""}" data-seg-field="template-color-mode" data-seg-value="${m}">${COLOR_MODE_LABELS[m]}</button>`
+  ).join("");
+  const paperButtons = PAPER_SIZES.map((s) =>
+    `<button type="button" class="seg-btn${s === "short" ? " active" : ""}" data-seg-field="template-paper-size" data-seg-value="${s}">${PAPER_SIZE_LABELS[s]}</button>`
+  ).join("");
+
+  showModal({
+    title: "Save Template",
+    bodyHtml: `
+      <div class="field-row">
+        <label class="field-label" for="template-name-input">Template name</label>
+        <input type="text" id="template-name-input" class="field-input" placeholder="e.g. Thesis B&W Long" autofocus />
+        <input type="hidden" id="template-color-mode" value="bw" />
+        <input type="hidden" id="template-paper-size" value="short" />
+      </div>
+      <div class="field-row">
+        <span class="field-label">Default Color Mode</span>
+        <div class="seg-control" data-seg-group="template-color-mode">${colorButtons}</div>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Default Paper Size</span>
+        <div class="seg-control" data-seg-group="template-paper-size">${paperButtons}</div>
+      </div>
+      <div class="field-row">
+        <label class="field-label" for="template-copies">Default Copies</label>
+        <input type="number" id="template-copies" class="field-input" value="1" min="1" step="1" />
+      </div>
+    `,
+    type: "confirm",
+    confirmText: "Save Template",
+    onConfirm: () => {
+      const name = el("template-name-input")?.value.trim();
+      if (!name) {
+        showToast("Please enter a template name", "error");
+        return;
+      }
+      state.orderTemplates.push({
+        name,
+        colorMode: el("template-color-mode")?.value || "bw",
+        paperSize: el("template-paper-size")?.value || "short",
+        defaultCopies: parseInt(el("template-copies")?.value) || 1,
+      });
+      persistSettingsToStorage();
+      renderTemplates();
+      showToast(`Template "${name}" saved`, "success");
+    },
+  });
 }

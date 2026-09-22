@@ -171,10 +171,18 @@ input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
 
 @media (min-width: 1024px) {
   .main-content {
-    grid-template-columns: 58% 42%;
+    grid-template-columns: 50% 50%;
     align-items: start;
-    gap: 24px;
+    gap: 20px;
     padding: 24px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .main-content {
+    grid-template-columns: 46% 54%;
+    max-width: 1600px;
+    gap: 24px;
   }
 }
 
@@ -217,6 +225,172 @@ input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* ─── File Preview Panel ─── */
+.file-preview-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  animation: fade-in 0.2s ease;
+}
+
+.file-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.file-preview-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.file-preview-back:hover { background: var(--bg-hover); color: var(--text-1); border-color: var(--border-strong); }
+.file-preview-back svg { width: 14px; height: 14px; }
+
+.file-preview-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-1);
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-preview-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.file-preview-close:hover { background: var(--red-dim); color: var(--red); border-color: var(--red); }
+.file-preview-close svg { width: 14px; height: 14px; }
+
+.file-preview-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  max-height: calc(100vh - 300px);
+  overflow: auto;
+}
+
+.file-preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  object-fit: contain;
+}
+
+.file-preview-empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+/* Page Navigation */
+.file-preview-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+}
+
+.file-preview-nav-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.file-preview-nav-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-1); border-color: var(--border-strong); }
+.file-preview-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.file-preview-nav-btn svg { width: 16px; height: 16px; }
+
+.file-preview-page-info {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* Metadata Bar */
+.file-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 10px 12px;
+  background: var(--bg-input);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-top: 12px;
+  font-size: 11px;
+}
+
+.file-preview-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.file-preview-meta-label {
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.file-preview-meta-val {
+  color: var(--text-1);
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.file-preview-meta-total {
+  color: var(--accent) !important;
+  font-weight: 700 !important;
 }
 
 /* ─── Scrollbar global ─── */

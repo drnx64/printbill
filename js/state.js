@@ -13,18 +13,12 @@ const state = {
     shouldRoundUp: false,
     defaultCopies: DEFAULT_COPIES,
     isKMode: false,
+    isExpressMode: false,
+    showUnitPrice: true,
     discordWebhookUrl: "",
   },
-  revenueConfig: {
-    sheetsPerReam: 500,
-    reamPriceLong: 197,
-    reamPriceShort: 164,
-    reamPriceA4: 169,
-    inkCostBottle: 400,
-    inkPagesYield: 2500,
-    elecKwhRate: 14,
-    printerWattage: 50,
-  },
+  lastPaperSize: "short",
+  lastColorMode: "bw",
   customerName: "",
   cumulativeStats: {
     pagesLong: 0,
@@ -43,4 +37,7 @@ const state = {
   invoiceRef: "", // Will be generated in main.js
   invoiceDate: "", // Will be set in main.js
   qrCode: "",
+  orderTemplates: [],
+  _previewItemId: null,
+  _previewPage: 0,
 };

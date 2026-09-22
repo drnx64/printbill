@@ -1,5 +1,5 @@
 /**
- * File Processing (PDF/DOCX)
+ * File Processing (PDF primary, DOCX estimate-only)
  */
 
 // Checks if two dimensions match (either orientation) within tolerance of 20pt
@@ -56,7 +56,7 @@ async function readDocxPageCountAsync(file) {
     const arrayBuffer = await file.arrayBuffer();
     const zip = new JSZip();
     const loadedZip = await zip.loadAsync(arrayBuffer);
-    
+
     const appXml = await loadedZip.file("docProps/app.xml")?.async("string");
     let metadataPages = 0;
     if (appXml) {
@@ -98,12 +98,10 @@ function estimateDocxPageCount(file) {
 
 async function processFilesAsync(files) {
   if (!files || files.length === 0) return;
-  
+
   const fileArray = Array.from(files);
   const total = fileArray.length;
-  
-  // Process in parallel with a small delay between batches to keep UI responsive if needed
-  // For now, simple Promise.all is fastest
+
   await Promise.all(fileArray.map(async (file) => {
     try {
       await processUploadedFileAsync(file);
@@ -112,7 +110,7 @@ async function processFilesAsync(files) {
       showToast(`Failed to process ${file.name}`, "error");
     }
   }));
-  
+
   setTimeout(() => {
     showToast(`Successfully processed ${total} files`, "success");
   }, 500);
@@ -126,8 +124,8 @@ async function processUploadedFileAsync(file) {
   const fileName = stripExtension(file.name);
   const copies = parseInt(el("default-copies")?.value) || state.settings.defaultCopies;
 
-  const colorMode = "bw";
-  const paperSize = "short";
+  const colorMode = state.lastColorMode || "bw";
+  const paperSize = state.lastPaperSize || "short";
   const unitPrice = getPriceForItem(colorMode, paperSize);
 
   const item = {
@@ -143,31 +141,78 @@ async function processUploadedFileAsync(file) {
     isPageExact: false,
     isManual: false,
     needsPageEntry: false,
+    _processing: true,
+    _previewDataUrl: null,
   };
 
   state.fileItems.push(item);
   renderFileTableRow(item);
   showCompactDropZone();
 
-  if (isPdf) {
-    try {
-      const result = await readPdfPageCountAsync(file);
-      item.paperSize = result.detectedSize;
-      item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
-      mutateItemPages(item.id, result.numPages, true);
-    } catch {
+  try {
+    if (isPdf) {
+      try {
+        const result = await readPdfPageCountAsync(file);
+        item.paperSize = result.detectedSize;
+        state.lastPaperSize = result.detectedSize;
+        item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+        mutateItemPages(item.id, result.numPages, true);
+
+        const sizeLabel = { long: "Long (8.5×14)", short: "Short (8.5×11)", a4: "A4 (210×297mm)" }[result.detectedSize];
+        showToast(`Detected: ${sizeLabel} — ${result.numPages} pages`, "info");
+
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+          const page1 = await pdf.getPage(1);
+          const viewport = page1.getViewport({ scale: 1.5 });
+          const canvas = document.createElement("canvas");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          await page1.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+          item._previewDataUrl = canvas.toDataURL("image/png");
+          refreshItemRow(item.id);
+        } catch (e) {
+          console.warn("Failed to render PDF preview", e);
+        }
+      } catch {
+        mutateItemNeedsPageEntry(item.id);
+      }
+    } else if (isDocx) {
+      // Estimate-only: no DOCX viewer. Warn user to convert to PDF.
+      const pageCount = await readDocxPageCountAsync(file);
+      mutateItemPages(item.id, pageCount, false);
+
+      // Detect paper size from DOCX XML when possible
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const zip = new JSZip();
+        const loadedZip = await zip.loadAsync(arrayBuffer);
+        const docXml = await loadedZip.file("word/document.xml")?.async("string");
+        if (docXml) {
+          const pgSzMatch = docXml.match(/<w:pgSz[^>]*w:w="(\d+)"[^>]*w:h="(\d+)"[^>]*\/?>/);
+          if (pgSzMatch) {
+            const ptW = parseInt(pgSzMatch[1]) / 20;
+            const ptH = parseInt(pgSzMatch[2]) / 20;
+            if (isSizePt(ptW, ptH, 612, 936)) item.paperSize = "long";
+            else if (isSizePt(ptW, ptH, 595, 842)) item.paperSize = "a4";
+            else item.paperSize = "short";
+            item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+            refreshItemRow(item.id);
+          }
+        }
+      } catch (e) {
+        console.warn("DOCX paper size detection failed", e);
+      }
+
+      showToast(`⚠ ${fileName}: page count is approximate — convert to PDF`, "info");
+    } else {
       mutateItemNeedsPageEntry(item.id);
     }
-  } else if (isDocx) {
-    try {
-      const pages = await readDocxPageCountAsync(file);
-      mutateItemPages(item.id, pages, true);
-    } catch {
-      const estimated = estimateDocxPageCount(file);
-      mutateItemPages(item.id, estimated, false);
-    }
-  } else {
-    mutateItemNeedsPageEntry(item.id);
+  } finally {
+    item._processing = false;
+    refreshItemRow(item.id);
+    persistSettingsToStorage();
   }
 }
 

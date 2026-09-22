@@ -243,6 +243,7 @@ function renderFileTableRow(item) {
   refreshItemRow(item.id);
   el("file-table-container").style.display = "block";
   updateTotals();
+  updateExpressCard();
   updateInvoicePreview();
 }
 
@@ -266,28 +267,32 @@ function refreshItemRow(id) {
 
   const nameContent = item.isManual
     ? `<input type="text" class="row-name-input" value="${item.fileName}" data-id="${id}" data-field="fileName" />`
-    : `<span class="file-name-text" title="${item.fileName}">${item.fileName}</span>`;
+    : `<span class="file-name-text clickable" data-preview-id="${id}" title="${item.fileName} — click to preview">${item.fileName}</span>`;
+
+  const progressBarHtml = item._processing
+    ? '<div class="row-progress"><div class="row-progress-fill"></div></div>'
+    : "";
+
+  const paperBtns = PAPER_SIZES.map((s) =>
+    `<button type="button" class="seg-btn${item.paperSize === s ? " active" : ""}" data-id="${id}" data-field="paperSize" data-value="${s}" title="${PAPER_SIZE_LABELS[s]} paper">${PAPER_SIZE_LABELS[s]}</button>`
+  ).join("");
+
+  const modeBtns = COLOR_MODES.map((m) =>
+    `<button type="button" class="seg-btn${item.colorMode === m || (m === "color_small" && item.colorMode === "color") ? " active" : ""}" data-id="${id}" data-field="colorMode" data-value="${m}" title="${COLOR_MODE_LONG_LABELS[m]}">${COLOR_MODE_SHORT[m]}</button>`
+  ).join("");
 
   tr.innerHTML = `
     <td style="color:var(--text-3);font-size:12px;font-family:var(--font-mono)">${rowIndex}</td>
     <td class="file-name-cell">
       ${nameContent}
+      ${progressBarHtml}
       <div class="file-meta">${fileTypePill}${metaPills}${isActive ? '<span class="meta-pill pill-discount">✦ Tier</span>' : ""}</div>
     </td>
     <td>
-      <select class="row-select" data-id="${id}" data-field="paperSize">
-        <option value="short"${item.paperSize === "short" ? " selected" : ""}>Short</option>
-        <option value="long"${item.paperSize === "long" ? " selected" : ""}>Long</option>
-        <option value="a4"${item.paperSize === "a4" ? " selected" : ""}>A4</option>
-      </select>
+      <div class="seg-control" data-field="paperSize">${paperBtns}</div>
     </td>
     <td>
-      <select class="row-select" data-id="${id}" data-field="colorMode">
-        <option value="bw"${item.colorMode === "bw" ? " selected" : ""}>B&amp;W</option>
-        <option value="color_small"${item.colorMode === "color_small" || item.colorMode === "color" ? " selected" : ""}>Small Color</option>
-        <option value="color_partial"${item.colorMode === "color_partial" ? " selected" : ""}>Partial Color</option>
-        <option value="color_full"${item.colorMode === "color_full" ? " selected" : ""}>Full Color</option>
-      </select>
+      <div class="seg-control" data-field="colorMode">${modeBtns}</div>
     </td>
     <td>
       <input type="number" class="${pagesInputClass}" value="${pagesValue}" min="1"
@@ -307,13 +312,23 @@ function refreshItemRow(id) {
 }
 
 function buildMetaPills(item) {
-  if (item.isManual)
-    return '<span class="meta-pill pill-estimated">Manual</span>';
-  if (item.needsPageEntry)
-    return '<span class="meta-pill pill-warn">⚠ Enter pages</span>';
-  if (item.isPageExact)
-    return '<span class="meta-pill pill-exact">● Exact</span>';
-  return '<span class="meta-pill pill-estimated" title="Estimated from file size">~Est.</span>';
+  const pills = [];
+  if (item.isManual) {
+    pills.push('<span class="meta-pill pill-estimated">Manual</span>');
+  } else {
+    const isDocx = item.fileExt === "docx" || item.fileExt === "doc";
+    if (isDocx) {
+      pills.push('<span class="meta-pill pill-warn" title="DOCX page counts are estimates — convert to PDF for accuracy">⚠ Approx — use PDF</span>');
+    }
+    if (item.needsPageEntry) {
+      pills.push('<span class="meta-pill pill-warn">⚠ Enter pages</span>');
+    } else if (item.isPageExact) {
+      pills.push('<span class="meta-pill pill-exact">● Exact</span>');
+    } else if (!isDocx) {
+      pills.push('<span class="meta-pill pill-estimated" title="Estimated from file size">~Est.</span>');
+    }
+  }
+  return pills.join("");
 }
 
 function checkIfRowPushesTierActive(targetItem) {
@@ -333,6 +348,7 @@ function refreshAllRows() {
 }
 
 function removeItemFromState(id) {
+  const removed = state.fileItems.find((i) => i.id === id);
   state.fileItems = state.fileItems.filter((i) => i.id !== id);
   const tr = el(`row-${id}`);
   if (tr) {
@@ -346,14 +362,15 @@ function removeItemFromState(id) {
     showFullDropZone();
   }
   updateTotals();
+  updateExpressCard();
   updateInvoicePreview();
 }
 
 function addManualItem() {
   const id = state.nextItemId++;
   const copies = parseInt(el("default-copies")?.value) || state.settings.defaultCopies;
-  const colorMode = "bw";
-  const paperSize = "short";
+  const colorMode = state.lastColorMode || "bw";
+  const paperSize = state.lastPaperSize || "short";
   const item = {
     id,
     fileName: "Custom Item",
@@ -370,6 +387,7 @@ function addManualItem() {
   renderFileTableRow(item);
   showCompactDropZone();
   updateTotals();
+  updateExpressCard();
   updateInvoicePreview();
   setStatus("Unsaved", "unsaved");
 }
@@ -386,6 +404,126 @@ function showCompactDropZone() {
   const cdz = el("drop-zone-compact");
   if (dz) dz.style.display = "none";
   if (cdz) cdz.style.display = "flex";
+}
+
+function showFilePreview(id) {
+  const item = findItemById(id);
+  if (!item) return;
+
+  const invoicePreview = el("invoice-preview");
+  const previewFrame = invoicePreview?.closest(".preview-frame");
+  const container = el("file-preview-container");
+  if (!container) return;
+
+  // Store current preview item for page navigation
+  state._previewItemId = id;
+  state._previewPage = 0;
+
+  // Build preview body
+  const body = el("file-preview-body");
+  const title = el("file-preview-title");
+  const nav = el("file-preview-nav");
+  const meta = el("file-preview-meta");
+
+  if (title) title.textContent = item.fileName;
+
+  // Determine what to show
+  const hasPdfPreview = !!item._previewDataUrl;
+
+  if (hasPdfPreview) {
+    // PDF — single page image
+    body.innerHTML = `<img class="file-preview-image" id="file-preview-image" src="${item._previewDataUrl}" />`;
+    if (nav) nav.style.display = "none";
+  } else {
+    const isDocx = item.fileExt === "docx" || item.fileExt === "doc";
+    const msg = isDocx
+      ? "No preview for DOCX — convert to PDF for accurate pages &amp; preview"
+      : "No preview available";
+    body.innerHTML = `<div class="file-preview-empty">${msg}</div>`;
+    if (nav) nav.style.display = "none";
+  }
+
+  // Metadata bar
+  if (meta) {
+    const sizeLabel = PAPER_SIZE_LABELS[item.paperSize] || "Short";
+    const modeLabel = COLOR_MODE_LONG_LABELS[item.colorMode] || "B&W";
+    meta.innerHTML = `
+      <span class="file-preview-meta-item"><span class="file-preview-meta-label">Pages</span><span class="file-preview-meta-val">${item.pages}</span></span>
+      <span class="file-preview-meta-item"><span class="file-preview-meta-label">Copies</span><span class="file-preview-meta-val">${item.copies}</span></span>
+      <span class="file-preview-meta-item"><span class="file-preview-meta-label">Paper</span><span class="file-preview-meta-val">${sizeLabel}</span></span>
+      <span class="file-preview-meta-item"><span class="file-preview-meta-label">Color</span><span class="file-preview-meta-val">${modeLabel}</span></span>
+      <span class="file-preview-meta-item"><span class="file-preview-meta-label">Unit</span><span class="file-preview-meta-val">${formatPeso(item.unitPrice)}/pg</span></span>
+      <span class="file-preview-meta-item"><span class="file-preview-meta-label">Total</span><span class="file-preview-meta-val file-preview-meta-total">${formatPeso(computeItemTotal(item))}</span></span>
+      ${item.fileSize ? `<span class="file-preview-meta-item"><span class="file-preview-meta-label">Size</span><span class="file-preview-meta-val">${formatSize(item.fileSize)}</span></span>` : ""}
+    `;
+  }
+
+  // Swap panels
+  if (previewFrame) previewFrame.style.display = "none";
+  container.style.display = "flex";
+}
+
+function closeFilePreview() {
+  const container = el("file-preview-container");
+  const invoicePreview = el("invoice-preview");
+  const previewFrame = invoicePreview?.closest(".preview-frame");
+  if (container) container.style.display = "none";
+  if (previewFrame) previewFrame.style.display = "";
+  state._previewItemId = null;
+  state._previewPage = 0;
+}
+
+function navigatePreviewPage(direction) {
+  // PDF previews are single-page; DOCX previews were removed (PDF-only).
+}
+
+function updateExpressCard() {
+  const card = el("express-card");
+  const tableContainer = el("file-table-container");
+  if (!card) return;
+
+  const isExpress = state.settings.isExpressMode && state.fileItems.length === 1;
+  card.style.display = isExpress ? "block" : "none";
+  if (tableContainer) tableContainer.style.display = isExpress ? "none" : (state.fileItems.length > 0 ? "block" : "none");
+
+  if (isExpress) {
+    const item = state.fileItems[0];
+    const total = computeItemTotal(item);
+    const sizeLabel = { long: "Long (8.5×14)", short: "Short (8.5×11)", a4: "A4" }[item.paperSize] || "Short";
+    const modeLabel = COLOR_MODE_LONG_LABELS[item.colorMode] || "B&W";
+
+    const content = el("express-card-content");
+    if (content) {
+      content.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+          <div>
+            <div style="font-size:16px;font-weight:700;color:var(--text-1);margin-bottom:2px">${truncateText(item.fileName, 32)}</div>
+            <div style="display:flex;gap:6px;margin-top:4px">
+              <span class="meta-pill">${sizeLabel}</span>
+              <span class="meta-pill">${modeLabel}</span>
+              ${item.isPageExact ? '<span class="meta-pill pill-exact">● Exact</span>' : '<span class="meta-pill pill-estimated">~Est.</span>'}
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:20px;font-weight:700;color:var(--accent);font-family:var(--font-mono)">${formatPeso(total)}</div>
+            <div style="font-size:11px;color:var(--text-3)">${formatPeso(item.unitPrice)}/pg</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <div style="flex:1">
+            <label class="field-label" style="font-size:10px">Pages</label>
+            <input type="number" class="num-input" value="${item.pages || ""}" min="1"
+              data-id="${item.id}" data-field="pages" style="width:100%;font-size:14px" />
+          </div>
+          <div style="flex:1">
+            <label class="field-label" style="font-size:10px">Copies</label>
+            <input type="number" class="num-input" value="${item.copies}" min="1"
+              data-id="${item.id}" data-field="copies" style="width:100%;font-size:14px" />
+          </div>
+        </div>
+      `;
+    }
+  }
 }
 
 function refreshTotalCell(id) {

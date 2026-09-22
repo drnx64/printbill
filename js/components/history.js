@@ -120,8 +120,8 @@ function renderHistoryList() {
       ? entry.fileItems
           .map((f) => {
             const sizeStr = f.fileSize ? ` <span class="history-file-size">(${formatSize(f.fileSize)})</span>` : "";
-            const paperLabel = { long: "Long", short: "Short", a4: "A4" }[f.paperSize] || "Short";
-            const modeLabel = f.colorMode === "color" ? "Color" : "B&W";
+            const paperLabel = PAPER_SIZE_LABELS[f.paperSize] || "Short";
+            const modeLabel = COLOR_MODE_LABELS[f.colorMode] || "B&W";
 
             return `
       <div class="history-file-row">
@@ -155,6 +155,7 @@ function renderHistoryList() {
     item.innerHTML = `
       <div class="history-item-header">
         <div class="history-item-top">
+          ${bulkModeActive ? `<input type="checkbox" id="bulk-check-${idx}" class="bulk-checkbox" ${bulkSelected.has(idx) ? 'checked' : ''} style="margin-right:8px;accent-color:var(--accent)" />` : ''}
           <div style="display:flex;flex-direction:column">
             <span class="history-item-name" style="font-size:16px;color:var(--accent);font-weight:700;line-height:1.2">${entry.customerName}</span>
             <span class="history-item-ref" style="font-size:10px;color:var(--text-3);font-family:var(--font-mono)">${entry.ref}</span>
@@ -173,6 +174,10 @@ function renderHistoryList() {
         </div>
         ${remarksHtml}
         <div class="history-actions">
+          <button class="btn-history-action btn-reprint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
+            Reprint
+          </button>
           <button class="btn-history-action btn-done${entry.isDone ? " active-done" : ""}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
             Done
@@ -189,11 +194,157 @@ function renderHistoryList() {
     `;
 
     // Bind Events
-    item.querySelector(".history-item-header").addEventListener("click", () => toggleHistoryExpanded(idx));
+    const headerEl = item.querySelector(".history-item-header");
+    if (bulkModeActive) {
+      const checkbox = item.querySelector(`#bulk-check-${idx}`);
+      if (checkbox) {
+        checkbox.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleBulkSelect(idx);
+        });
+      }
+      headerEl.addEventListener("click", (e) => {
+        if (e.target.closest(".bulk-checkbox")) return;
+        toggleBulkSelect(idx);
+      });
+    } else {
+      headerEl.addEventListener("click", () => toggleHistoryExpanded(idx));
+    }
+    item.querySelector(".btn-reprint").addEventListener("click", (e) => { e.stopPropagation(); quickReprint(idx); });
     item.querySelector(".btn-done").addEventListener("click", (e) => { e.stopPropagation(); toggleHistoryStatus(idx, 'isDone'); });
     item.querySelector(".btn-paid").addEventListener("click", (e) => { e.stopPropagation(); toggleHistoryStatus(idx, 'isPaid'); });
     item.querySelector(".btn-delete").addEventListener("click", (e) => { e.stopPropagation(); deleteHistoryItem(idx); });
 
     container.appendChild(item);
+  });
+}
+
+function quickReprint(idx) {
+  const history = readLocalStorage(STORAGE_KEYS.recentInvoices, []);
+  const entry = history[idx];
+  if (!entry || !entry.fileItems || entry.fileItems.length === 0) return;
+
+  if (state.fileItems.length > 0) {
+    showModal({
+      title: "Reprint Order",
+      body: `Add ${entry.fileItems.length} items from ${entry.ref}? Current invoice will be cleared.`,
+      type: "confirm",
+      confirmText: "Clear & Reprint",
+      cancelText: "Cancel",
+      onConfirm: () => {
+        clearAllInvoiceData();
+        addHistoryItemsToInvoice(entry);
+      },
+    });
+  } else {
+    addHistoryItemsToInvoice(entry);
+  }
+}
+
+function addHistoryItemsToInvoice(entry) {
+  for (const fi of entry.fileItems) {
+    const id = state.nextItemId++;
+    const item = {
+      id,
+      fileName: fi.fileName,
+      pages: fi.pages,
+      copies: fi.copies,
+      colorMode: fi.colorMode,
+      paperSize: fi.paperSize,
+      unitPrice: getPriceForItem(fi.colorMode, fi.paperSize),
+      isPageExact: true,
+      isManual: true,
+      needsPageEntry: false,
+      _previewDataUrl: null,
+    };
+    state.fileItems.push(item);
+    renderFileTableRow(item);
+  }
+  showCompactDropZone();
+  updateTotals();
+  updateExpressCard();
+  showToast(`Reprinted ${entry.fileItems.length} items from ${entry.ref}`, "success");
+  closeDrawer();
+}
+
+// ─── Bulk Selection Mode ──────────────────────────────────────────────────
+
+let bulkModeActive = false;
+const bulkSelected = new Set();
+
+function toggleBulkMode() {
+  bulkModeActive = !bulkModeActive;
+  bulkSelected.clear();
+  updateBulkUI();
+  renderHistoryList();
+}
+
+function updateBulkUI() {
+  const bar = el("bulk-actions");
+  const countEl = el("bulk-count");
+  const btn = el("btn-bulk-mode");
+  if (bar) bar.style.display = bulkModeActive && bulkSelected.size > 0 ? "flex" : "none";
+  if (countEl) countEl.textContent = `${bulkSelected.size} selected`;
+  if (btn) {
+    btn.style.background = bulkModeActive ? "var(--accent)" : "";
+    btn.style.color = bulkModeActive ? "var(--bg)" : "";
+  }
+}
+
+function toggleBulkSelect(idx) {
+  if (bulkSelected.has(idx)) bulkSelected.delete(idx);
+  else bulkSelected.add(idx);
+
+  const checkbox = document.querySelector(`#bulk-check-${idx}`);
+  if (checkbox) checkbox.checked = bulkSelected.has(idx);
+
+  updateBulkUI();
+}
+
+function bulkMarkDone() {
+  if (bulkSelected.size === 0) return;
+  const history = readLocalStorage(STORAGE_KEYS.recentInvoices, []);
+  for (const idx of bulkSelected) {
+    if (history[idx]) history[idx].isDone = true;
+  }
+  writeLocalStorage(STORAGE_KEYS.recentInvoices, history);
+  bulkSelected.clear();
+  updateBulkUI();
+  renderHistoryList();
+  showToast("Marked as done", "success");
+}
+
+function bulkMarkPaid() {
+  if (bulkSelected.size === 0) return;
+  const history = readLocalStorage(STORAGE_KEYS.recentInvoices, []);
+  for (const idx of bulkSelected) {
+    if (history[idx]) history[idx].isPaid = true;
+  }
+  writeLocalStorage(STORAGE_KEYS.recentInvoices, history);
+  bulkSelected.clear();
+  updateBulkUI();
+  renderHistoryList();
+  showToast("Marked as paid", "success");
+}
+
+function bulkDelete() {
+  if (bulkSelected.size === 0) return;
+  showModal({
+    title: "Delete Selected",
+    body: `Are you sure you want to remove ${bulkSelected.size} item(s) from history?`,
+    type: "danger",
+    confirmText: "Delete",
+    onConfirm: () => {
+      const history = readLocalStorage(STORAGE_KEYS.recentInvoices, []);
+      const sorted = Array.from(bulkSelected).sort((a, b) => b - a);
+      for (const idx of sorted) {
+        history.splice(idx, 1);
+      }
+      writeLocalStorage(STORAGE_KEYS.recentInvoices, history);
+      bulkSelected.clear();
+      updateBulkUI();
+      renderHistoryList();
+      showToast("Selected items deleted", "info");
+    }
   });
 }

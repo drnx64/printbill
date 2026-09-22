@@ -4,11 +4,11 @@
 function getPriceForItem(colorMode, paperSize) {
   const mode = (colorMode || "bw").toLowerCase();
   const size = (paperSize || "short").toLowerCase();
-  
+
   if (state.pricing[mode] && state.pricing[mode][size]) {
     return state.pricing[mode][size];
   }
-  
+
   // Fallback for legacy "color" key
   if (mode === "color" && state.pricing.color_small) {
     return state.pricing.color_small[size] || 3.0;
@@ -18,15 +18,13 @@ function getPriceForItem(colorMode, paperSize) {
 }
 
 function getPricingMatrixValues() {
-  const modes = ["bw", "color_small", "color_partial", "color_full"];
   const matrix = {};
 
-  for (const mode of modes) {
-    matrix[mode] = {
-      long: parseFloat(el(`price-${mode}-long`).value) || 0,
-      short: parseFloat(el(`price-${mode}-short`).value) || 0,
-      a4: parseFloat(el(`price-${mode}-a4`).value) || 0,
-    };
+  for (const mode of COLOR_MODES) {
+    matrix[mode] = {};
+    for (const size of PAPER_SIZES) {
+      matrix[mode][size] = parseFloat(el(`price-${mode}-${size}`).value) || 0;
+    }
   }
 
   return matrix;
@@ -66,7 +64,7 @@ function computeGrandTotal() {
   const taxAmt = state.settings.isTaxEnabled
     ? discountedPrice * (state.settings.taxRate / 100)
     : 0;
-  
+
   const rawTotal = discountedPrice + taxAmt;
   let grandTotal = rawTotal;
   let roundingAmt = 0;

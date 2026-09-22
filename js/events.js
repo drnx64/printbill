@@ -75,7 +75,7 @@ async function handleFiles(files) {
     showToast("Only PDF and DOCX files are supported", "error");
     return;
   }
-  
+
   await processFilesAsync(supported);
 }
 
@@ -101,26 +101,84 @@ function bindFileTableEvents() {
       item.fileName = input.value || "Custom Item";
     } else if (field === "copies") {
       item.copies = parseInt(input.value) || 1;
-    } else if (field === "paperSize") {
-      item.paperSize = input.value;
-      item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
-    } else if (field === "colorMode") {
-      item.colorMode = input.value;
-      item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
     }
 
     refreshTotalCell(id);
     updateTotals();
     refreshAllRows();
+    updateExpressCard();
     updateInvoicePreview();
   });
 
+  // Segmented buttons (paper size / color mode)
   body.addEventListener("click", (e) => {
+    const segBtn = e.target.closest(".seg-btn");
+    if (segBtn && segBtn.dataset.id) {
+      const id = parseInt(segBtn.dataset.id);
+      const field = segBtn.dataset.field;
+      const value = segBtn.dataset.value;
+      const item = findItemById(id);
+      if (!item || !field || !value) return;
+
+      if (field === "paperSize") {
+        item.paperSize = value;
+        state.lastPaperSize = value;
+      } else if (field === "colorMode") {
+        item.colorMode = value;
+        state.lastColorMode = value;
+      } else {
+        return;
+      }
+      item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+
+      refreshTotalCell(id);
+      updateTotals();
+      refreshAllRows();
+      updateExpressCard();
+      updateInvoicePreview();
+      persistSettingsToStorage();
+      return;
+    }
+
+    const previewTarget = e.target.closest("[data-preview-id]");
+    if (previewTarget) {
+      const id = parseInt(previewTarget.dataset.previewId);
+      showFilePreview(id);
+      return;
+    }
     const btn = e.target.closest(".remove-btn");
     if (!btn) return;
     const id = parseInt(btn.dataset.id);
     if (id) removeItemFromState(id);
   });
+
+  // Express card input delegation
+  const expressContent = el("express-card-content");
+  if (expressContent) {
+    expressContent.addEventListener("change", (e) => {
+      const input = e.target;
+      const id = parseInt(input.dataset.id);
+      const field = input.dataset.field;
+      if (!id || !field) return;
+
+      const item = findItemById(id);
+      if (!item) return;
+
+      if (field === "pages") {
+        item.pages = parseInt(input.value) || 0;
+        item.isPageExact = true;
+        item.needsPageEntry = item.pages < 1;
+      } else if (field === "copies") {
+        item.copies = parseInt(input.value) || 1;
+      }
+
+      refreshTotalCell(id);
+      updateTotals();
+      refreshAllRows();
+      updateExpressCard();
+      updateInvoicePreview();
+    });
+  }
 }
 
 function bindPricingMatrixEvents() {
@@ -167,6 +225,17 @@ function bindPricingEvents() {
     updateTotals();
     updateInvoicePreview();
   });
+
+  el("express-mode")?.addEventListener("change", (e) => {
+    state.settings.isExpressMode = e.target.checked;
+    updateExpressCard();
+  });
+
+  el("show-unit-price")?.addEventListener("change", (e) => {
+    state.settings.showUnitPrice = e.target.checked;
+    updateInvoicePreview();
+    persistSettingsToStorage();
+  });
 }
 
 function bindDiscountTierEvents() {
@@ -197,6 +266,7 @@ function bindDiscountTierEvents() {
 function bindExportEvents() {
   el("btn-place-order")?.addEventListener("click", placeOrder);
   el("btn-copy-image")?.addEventListener("click", copyInvoiceAsImageAsync);
+  el("btn-copy-text")?.addEventListener("click", copyInvoiceAsText);
   el("btn-print")?.addEventListener("click", () => printInvoice());
   el("btn-save-png")?.addEventListener("click", saveAsPngAsync);
   
@@ -218,6 +288,24 @@ function bindExportEvents() {
     updateTotals();
     updateInvoicePreview();
     showToast("All copies reset to 1", "info");
+  });
+
+  el("btn-apply-all")?.addEventListener("click", () => {
+    if (state.fileItems.length === 0) return;
+    const first = state.fileItems[0];
+    for (const item of state.fileItems) {
+      item.paperSize = first.paperSize;
+      item.colorMode = first.colorMode;
+      item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+    }
+    state.lastPaperSize = first.paperSize;
+    state.lastColorMode = first.colorMode;
+    refreshAllRows();
+    updateTotals();
+    updateExpressCard();
+    updateInvoicePreview();
+    persistSettingsToStorage();
+    showToast(`Applied ${PAPER_SIZE_LABELS[first.paperSize]} / ${COLOR_MODE_LABELS[first.colorMode]} to all rows`, "success");
   });
   
   el("btn-clear-table")?.addEventListener("click", () => {
@@ -247,6 +335,22 @@ function bindSettingsEvents() {
   el("drawer-overlay")?.addEventListener("click", closeDrawer);
   el("btn-drawer-cancel")?.addEventListener("click", closeDrawer);
   el("btn-save-settings")?.addEventListener("click", saveSettingsFromDrawer);
+
+  // Segmented buttons inside modals (e.g. template editor)
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".modal-content .seg-btn");
+    if (!btn) return;
+    const field = btn.dataset.segField;
+    const value = btn.dataset.segValue;
+    if (!field || !value) return;
+    const group = btn.closest(".seg-control");
+    if (group) {
+      group.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+    }
+    const hidden = el(field);
+    if (hidden) hidden.value = value;
+  });
   
   el("btn-clear-all")?.addEventListener("click", () => {
     if (state.fileItems.length === 0) return;
@@ -260,6 +364,7 @@ function bindSettingsEvents() {
   });
   
   el("btn-reset-settings")?.addEventListener("click", resetSettingsToDefaults);
+  el("btn-add-template")?.addEventListener("click", saveCurrentAsTemplate);
 
   el("tab-history")?.addEventListener("click", () => switchDrawerView("history"));
   el("tab-settings")?.addEventListener("click", () => switchDrawerView("settings"));
@@ -303,6 +408,7 @@ function bindHeaderEvents() {
   
   el("btn-recent")?.addEventListener("click", () => openDrawer("history"));
   el("btn-revenue-dashboard")?.addEventListener("click", () => showRevenueDashboard());
+  el("btn-daily-summary")?.addEventListener("click", () => showDailySummary());
   el("btn-clear-recent-history")?.addEventListener("click", () => clearAllHistory());
 }
 
@@ -333,6 +439,30 @@ function bindMobilePreviewEvents() {
   });
 }
 
+function bindFilePreviewEvents() {
+  el("file-preview-close")?.addEventListener("click", closeFilePreview);
+  el("file-preview-back")?.addEventListener("click", closeFilePreview);
+  el("file-preview-prev")?.addEventListener("click", () => navigatePreviewPage(-1));
+  el("file-preview-next")?.addEventListener("click", () => navigatePreviewPage(1));
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && el("file-preview-container")?.style.display !== "none") {
+      closeFilePreview();
+    }
+    if (state._previewItemId) {
+      if (e.key === "ArrowLeft") navigatePreviewPage(-1);
+      if (e.key === "ArrowRight") navigatePreviewPage(1);
+    }
+  });
+}
+
+function bindBulkEvents() {
+  el("btn-bulk-mode")?.addEventListener("click", toggleBulkMode);
+  el("bulk-mark-done")?.addEventListener("click", bulkMarkDone);
+  el("bulk-mark-paid")?.addEventListener("click", bulkMarkPaid);
+  el("bulk-delete")?.addEventListener("click", bulkDelete);
+}
+
 function bindAllEvents() {
   bindDropZoneEvents();
   bindFileTableEvents();
@@ -346,4 +476,6 @@ function bindAllEvents() {
   bindHeaderEvents();
   bindMobilePreviewEvents();
   bindModalEvents();
+  bindFilePreviewEvents();
+  bindBulkEvents();
 }

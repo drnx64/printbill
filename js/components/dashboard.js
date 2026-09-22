@@ -17,7 +17,7 @@ window.resetCumulativeStats = function() {
         totalRevenue: 0,
         totalOrders: 0,
       };
-      writeLocalStorage(STORAGE_KEYS.cumulativeStats, state.cumulativeStats);
+      writeDb(STORAGE_KEYS.cumulativeStats, state.cumulativeStats);
       showToast("Statistics reset", "info");
       showRevenueDashboard(); // Refresh
     }
@@ -26,44 +26,8 @@ window.resetCumulativeStats = function() {
 
 function showRevenueDashboard() {
   const c = state.cumulativeStats;
-  const r = state.revenueConfig;
-
-  // Unit costs
-  const costPaperLong = r.reamPriceLong / r.sheetsPerReam;
-  const costPaperShort = r.reamPriceShort / r.sheetsPerReam;
-  const costPaperA4 = r.reamPriceA4 / r.sheetsPerReam;
-  const costInk = r.inkCostBottle / r.inkPagesYield;
-  const costElec = (r.printerWattage / 1000) * (5 / 3600) * r.elecKwhRate;
-
-  // Total Expenses
-  const expPaper = (c.pagesLong * costPaperLong) + (c.pagesShort * costPaperShort) + (c.pagesA4 * costPaperA4);
   const totalPages = c.pagesLong + c.pagesShort + c.pagesA4;
-  const expInk = totalPages * costInk;
-  const expElec = totalPages * costElec;
-  const totalExpenses = expPaper + expInk + expElec;
-  const profit = c.totalRevenue - totalExpenses;
-  const margin = c.totalRevenue > 0 ? (profit / c.totalRevenue) * 100 : 0;
-
-  // Suggested Pricing (Markup based)
-  const baseCostLong = costPaperLong + costInk + costElec;
-  const baseCostShort = costPaperShort + costInk + costElec;
-  const baseCostA4 = costPaperA4 + costInk + costElec;
-
-  const suggestPrice = (base) => {
-    const suggested = base * 2.5; // 150% markup
-    return Math.max(suggested, 2.0).toFixed(2);
-  };
-
-  const getReamStats = (printed, sheets) => {
-    const remaining = sheets - (printed % sheets);
-    const percent = (remaining / sheets) * 100;
-    const isLow = remaining < (sheets * 0.2); // Low stock if < 20%
-    return { remaining, percent, isLow };
-  };
-
-  const longReam = getReamStats(c.pagesLong, r.sheetsPerReam);
-  const shortReam = getReamStats(c.pagesShort, r.sheetsPerReam);
-  const a4Ream = getReamStats(c.pagesA4, r.sheetsPerReam);
+  const avgOrder = c.totalOrders > 0 ? c.totalRevenue / c.totalOrders : 0;
 
   const bodyHtml = `
     <div class="revenue-dashboard-v2">
@@ -73,60 +37,27 @@ function showRevenueDashboard() {
           <div class="metric-label">Total Revenue</div>
           <div class="metric-value syne-font">${formatPeso(c.totalRevenue)}</div>
         </div>
-        <div class="metric-card profit ${profit >= 0 ? 'positive' : 'negative'}">
-          <div class="metric-label">Net Profit</div>
-          <div class="metric-value syne-font">${formatPeso(profit)}</div>
+        <div class="metric-card profit positive">
+          <div class="metric-label">Total Orders</div>
+          <div class="metric-value syne-font">${c.totalOrders}</div>
         </div>
         <div class="metric-card margin">
-          <div class="metric-label">Profit Margin</div>
-          <div class="metric-value syne-font">${margin.toFixed(1)}%</div>
+          <div class="metric-label">Avg. per Order</div>
+          <div class="metric-value syne-font">${formatPeso(avgOrder)}</div>
         </div>
       </div>
 
-      <!-- Ream Stock Progress -->
+      <!-- Pages Breakdown -->
       <div class="dashboard-section">
-        <div class="section-title-alt">Ream Stock Tracking</div>
-        <div class="ream-progress-grid">
-          ${renderReamProgress('Short', shortReam)}
-          ${renderReamProgress('A4', a4Ream)}
-          ${renderReamProgress('Long', longReam)}
+        <div class="section-title-alt">Pages Printed</div>
+        <div class="expense-list">
+          <div class="expense-item"><span>Total Pages</span><span class="expense-val">${totalPages}</span></div>
+          <div class="expense-item"><span>Long</span><span class="expense-val">${c.pagesLong}</span></div>
+          <div class="expense-item"><span>Short</span><span class="expense-val">${c.pagesShort}</span></div>
+          <div class="expense-item"><span>A4</span><span class="expense-val">${c.pagesA4}</span></div>
         </div>
       </div>
 
-      <!-- Financial Breakdown -->
-      <div class="dashboard-split">
-        <div class="dashboard-section">
-          <div class="section-title-alt">Expense Breakdown</div>
-          <div class="expense-list">
-            <div class="expense-item">
-              <span>Paper</span>
-              <span class="expense-val">${formatPeso(expPaper)}</span>
-            </div>
-            <div class="expense-item">
-              <span>Ink</span>
-              <span class="expense-val">${formatPeso(expInk)}</span>
-            </div>
-            <div class="expense-item">
-              <span>Electricity</span>
-              <span class="expense-val">${formatPeso(expElec)}</span>
-            </div>
-            <div class="expense-total">
-              <span>Total Cost</span>
-              <span>${formatPeso(totalExpenses)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="dashboard-section">
-          <div class="section-title-alt">Suggested Pricing</div>
-          <div class="suggest-list">
-            ${renderSuggestItem('Short', baseCostShort, suggestPrice(baseCostShort))}
-            ${renderSuggestItem('A4', baseCostA4, suggestPrice(baseCostA4))}
-            ${renderSuggestItem('Long', baseCostLong, suggestPrice(baseCostLong))}
-          </div>
-        </div>
-      </div>
-      
       <div class="dashboard-footer-actions">
         <button class="btn-dashboard-reset">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
@@ -151,28 +82,55 @@ function showRevenueDashboard() {
   }
 }
 
-function renderReamProgress(label, stats) {
-  const statusClass = stats.isLow ? 'status-low' : 'status-ok';
-  return `
-    <div class="ream-item">
-      <div class="ream-info">
-        <span class="ream-name">${label}</span>
-        <span class="ream-count">${stats.remaining} / ${state.revenueConfig.sheetsPerReam}</span>
-      </div>
-      <div class="ream-progress-wrap">
-        <div class="ream-progress-fill ${statusClass}" style="width: ${stats.percent}%"></div>
-      </div>
-      ${stats.isLow ? '<span class="low-stock-indicator">Low Stock</span>' : ''}
-    </div>
-  `;
-}
+function showDailySummary() {
+  const history = readLocalStorage(STORAGE_KEYS.recentInvoices, []);
+  const today = new Date().toDateString();
+  const todayOrders = history.filter(h => new Date(h.timestamp).toDateString() === today);
 
-function renderSuggestItem(label, cost, suggested) {
-  return `
-    <div class="suggest-card">
-      <div class="suggest-card-label">${label}</div>
-      <div class="suggest-card-price syne-font">₱${suggested}</div>
-      <div class="suggest-card-cost">Cost: ₱${cost.toFixed(2)}</div>
+  let todayRevenue = 0;
+  let todayPages = 0;
+  let todayItems = 0;
+
+  for (const order of todayOrders) {
+    todayRevenue += order.grandTotal || 0;
+    todayItems += order.itemCount || 0;
+    for (const fi of (order.fileItems || [])) {
+      todayPages += (fi.pages || 0) * (fi.copies || 1);
+    }
+  }
+
+  const bodyHtml = `
+    <div class="revenue-dashboard-v2">
+      <div class="dashboard-metrics">
+        <div class="metric-card revenue">
+          <div class="metric-label">Today's Revenue</div>
+          <div class="metric-value syne-font">${formatPeso(todayRevenue)}</div>
+        </div>
+        <div class="metric-card profit positive">
+          <div class="metric-label">Orders Today</div>
+          <div class="metric-value syne-font">${todayOrders.length}</div>
+        </div>
+        <div class="metric-card margin">
+          <div class="metric-label">Pages Today</div>
+          <div class="metric-value syne-font">${todayPages}</div>
+        </div>
+      </div>
+      <div class="dashboard-section">
+        <div class="section-title-alt">Today's Breakdown</div>
+        <div class="expense-list">
+          <div class="expense-item"><span>Total Pages</span><span class="expense-val">${todayPages}</span></div>
+          <div class="expense-item"><span>Total Files</span><span class="expense-val">${todayItems}</span></div>
+          <div class="expense-item"><span>Total Orders</span><span class="expense-val">${todayOrders.length}</span></div>
+        </div>
+      </div>
     </div>
   `;
+
+  showModal({
+    title: "Daily Summary",
+    bodyHtml: bodyHtml,
+    type: "info",
+    confirmText: "Close",
+    modalClass: "modal-lg"
+  });
 }
