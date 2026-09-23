@@ -91,6 +91,7 @@ function bindFileTableEvents() {
 
     const item = findItemById(id);
     if (!item) return;
+    state._lastRemoved = null;
 
     if (field === "pages") {
       item.pages = parseInt(input.value) || 0;
@@ -101,6 +102,14 @@ function bindFileTableEvents() {
       item.fileName = input.value || "Custom Item";
     } else if (field === "copies") {
       item.copies = parseInt(input.value) || 1;
+    } else if (field === "unitPrice") {
+      const v = parseFloat(input.value);
+      if (isNaN(v) || v < 0) {
+        input.value = Number(item.unitPrice).toFixed(2);
+        return;
+      }
+      item.unitPrice = v;
+      item.isCustomPrice = true;
     }
 
     refreshTotalCell(id);
@@ -110,8 +119,93 @@ function bindFileTableEvents() {
     updateInvoicePreview();
   });
 
+  // Enter-to-advance: pages → copies → next row's pages (Shift+Enter reverses)
+  const advanceFocus = (e) => {
+    if (e.key !== "Enter") return;
+    const input = e.target;
+    if (!input.dataset || !input.dataset.field) return;
+    e.preventDefault();
+    const fromField = input.dataset.field;
+    const fromId = parseInt(input.dataset.id);
+    const wasActive = document.activeElement === input;
+    if (wasActive) input.blur();
+    const items = state.fileItems;
+    const idx = items.findIndex((i) => i.id === fromId);
+    if (idx < 0) return;
+    let targetId, targetField;
+    if (!e.shiftKey) {
+      if (fromField === "pages") {
+        targetId = fromId;
+        targetField = "copies";
+      } else if (fromField === "fileName" || fromField === "unitPrice") {
+        targetId = fromId;
+        targetField = "pages";
+      } else {
+        const next = items[idx + 1] || items[0];
+        targetId = next.id;
+        targetField = "pages";
+      }
+    } else {
+      if (fromField === "copies") {
+        targetId = fromId;
+        targetField = "pages";
+      } else {
+        const prev = items[idx - 1] || items[items.length - 1];
+        targetId = prev.id;
+        targetField = "copies";
+      }
+    }
+    const tr = el(`row-${targetId}`);
+    const nextInput = tr?.querySelector(`input[data-field="${targetField}"]`);
+    if (nextInput) {
+      nextInput.focus();
+      nextInput.select?.();
+    }
+  };
+  body.addEventListener("keydown", advanceFocus);
+
+  // Double-click: rename non-manual file, or reset custom unit price
+  body.addEventListener("dblclick", (e) => {
+    const unit = e.target.closest('input[data-field="unitPrice"]');
+    if (unit) {
+      const item = findItemById(parseInt(unit.dataset.id));
+      if (item) {
+        item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+        item.isCustomPrice = false;
+        refreshAllRows();
+        updateTotals();
+        updateExpressCard();
+        updateInvoicePreview();
+        showToast("Unit price reset to matrix", "info");
+      }
+      return;
+    }
+    const span = e.target.closest(".file-name-text[data-preview-id]");
+    if (!span) return;
+    const id = parseInt(span.dataset.previewId);
+    const item = findItemById(id);
+    if (!item) return;
+    const input = buildElement("input", {
+      type: "text",
+      className: "row-name-input",
+      value: item.fileName,
+    });
+    input.dataset.id = id;
+    input.dataset.field = "fileName";
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+  });
+
   // Segmented buttons (paper size / color mode)
   body.addEventListener("click", (e) => {
+    const dupBtn = e.target.closest(".dup-btn");
+    if (dupBtn) {
+      const dupId = parseInt(dupBtn.dataset.id);
+      if (dupId) duplicateItem(dupId);
+      return;
+    }
+
     const segBtn = e.target.closest(".seg-btn");
     if (segBtn && segBtn.dataset.id) {
       const id = parseInt(segBtn.dataset.id);
@@ -129,7 +223,9 @@ function bindFileTableEvents() {
       } else {
         return;
       }
-      item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+      if (!item.isCustomPrice) {
+        item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+      }
 
       refreshTotalCell(id);
       updateTotals();
@@ -163,6 +259,7 @@ function bindFileTableEvents() {
 
       const item = findItemById(id);
       if (!item) return;
+      state._lastRemoved = null;
 
       if (field === "pages") {
         item.pages = parseInt(input.value) || 0;
@@ -178,6 +275,13 @@ function bindFileTableEvents() {
       updateExpressCard();
       updateInvoicePreview();
     });
+    expressContent.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const input = e.target;
+      if (!input.dataset || !input.dataset.field) return;
+      e.preventDefault();
+      if (document.activeElement === input) input.blur();
+    });
   }
 }
 
@@ -188,7 +292,9 @@ function bindPricingMatrixEvents() {
   table.addEventListener("input", () => {
     syncPricingMatrixToState();
     for (const item of state.fileItems) {
-      item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+      if (!item.isCustomPrice) {
+        item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+      }
     }
     refreshAllRows();
     updateTotals();
@@ -270,15 +376,7 @@ function bindExportEvents() {
   el("btn-print")?.addEventListener("click", () => printInvoice());
   el("btn-save-png")?.addEventListener("click", saveAsPngAsync);
   
-  el("btn-new-invoice")?.addEventListener("click", () => {
-    showModal({
-      title: "New Invoice",
-      body: "Start a new invoice? Current data will be cleared.",
-      type: "confirm",
-      confirmText: "Start New",
-      onConfirm: () => startNewInvoice()
-    });
-  });
+  el("btn-new-invoice")?.addEventListener("click", confirmNewInvoice);
 
   el("btn-add-item")?.addEventListener("click", addManualItem);
   
@@ -296,7 +394,9 @@ function bindExportEvents() {
     for (const item of state.fileItems) {
       item.paperSize = first.paperSize;
       item.colorMode = first.colorMode;
-      item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+      if (!item.isCustomPrice) {
+        item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+      }
     }
     state.lastPaperSize = first.paperSize;
     state.lastColorMode = first.colorMode;
@@ -325,7 +425,31 @@ function bindExportEvents() {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toUpperCase() === "C") {
       e.preventDefault();
       copyInvoiceAsImageAsync();
+      return;
     }
+    // Ctrl+Z / Cmd+Z: undo last row removal
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toUpperCase() === "Z") {
+      if (state._lastRemoved && !isEditableTarget(e.target)) {
+        e.preventDefault();
+        undoRemoveItem();
+      }
+    }
+  });
+}
+
+function isEditableTarget(target) {
+  if (!target) return false;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+}
+
+function confirmNewInvoice() {
+  showModal({
+    title: "New Invoice",
+    body: "Start a new invoice? Current data will be cleared and a new REF# generated.",
+    type: "confirm",
+    confirmText: "Start New",
+    onConfirm: () => startNewInvoice(),
   });
 }
 
@@ -336,10 +460,10 @@ function bindSettingsEvents() {
   el("btn-drawer-cancel")?.addEventListener("click", closeDrawer);
   el("btn-save-settings")?.addEventListener("click", saveSettingsFromDrawer);
 
-  // Segmented buttons inside modals (e.g. template editor)
+  // Segmented buttons inside modals & settings drawer (e.g. template editor, defaults)
   document.addEventListener("click", (e) => {
-    const btn = e.target.closest(".modal-content .seg-btn");
-    if (!btn) return;
+    const btn = e.target.closest(".seg-btn");
+    if (!btn || !btn.dataset.segField) return;
     const field = btn.dataset.segField;
     const value = btn.dataset.segValue;
     if (!field || !value) return;
@@ -350,6 +474,13 @@ function bindSettingsEvents() {
     }
     const hidden = el(field);
     if (hidden) hidden.value = value;
+  });
+
+  el("prefer-defaults")?.addEventListener("change", (e) => {
+    state.settings.preferDefaults = e.target.checked;
+    const rows = el("default-format-rows");
+    if (rows) rows.style.display = e.target.checked ? "flex" : "none";
+    persistSettingsToStorage();
   });
   
   el("btn-clear-all")?.addEventListener("click", () => {
@@ -365,6 +496,7 @@ function bindSettingsEvents() {
   
   el("btn-reset-settings")?.addEventListener("click", resetSettingsToDefaults);
   el("btn-add-template")?.addEventListener("click", saveCurrentAsTemplate);
+  el("template-list")?.addEventListener("click", handleTemplateListClick);
 
   el("tab-history")?.addEventListener("click", () => switchDrawerView("history"));
   el("tab-settings")?.addEventListener("click", () => switchDrawerView("settings"));
@@ -383,7 +515,7 @@ function bindQrEvents() {
 function bindNumericInputEvents() {
   document.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT" && e.target.type === "number") {
-      const allowedKeys = ["0","1","2","3","4","5","6","7","8","9",".","Backspace","Delete","ArrowLeft","ArrowRight","Tab","Home","End","Enter"];
+      const allowedKeys = ["0","1","2","3","4","5","6","7","8","9",".","Backspace","Delete","ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Tab","Home","End","Enter"];
       if (e.ctrlKey || e.metaKey) return;
       if (!allowedKeys.includes(e.key)) e.preventDefault();
     }
@@ -408,6 +540,7 @@ function bindHeaderEvents() {
   
   el("btn-recent")?.addEventListener("click", () => openDrawer("history"));
   el("btn-clear-recent-history")?.addEventListener("click", () => clearAllHistory());
+  el("btn-new-invoice-header")?.addEventListener("click", confirmNewInvoice);
 }
 
 function bindMobilePreviewEvents() {
@@ -461,6 +594,38 @@ function bindBulkEvents() {
   el("bulk-delete")?.addEventListener("click", bulkDelete);
 }
 
+function bindHistoryFilterEvents() {
+  el("history-search")?.addEventListener("input", (e) => {
+    historyQuery = e.target.value.trim().toLowerCase();
+    bulkSelected.clear();
+    updateBulkUI();
+    renderHistoryList();
+  });
+
+  el("history-filters")?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".history-filter");
+    if (!btn) return;
+    historyFilter = btn.dataset.filter || "all";
+    document.querySelectorAll(".history-filter").forEach((b) => {
+      b.classList.toggle("active", b === btn);
+    });
+    bulkSelected.clear();
+    updateBulkUI();
+    renderHistoryList();
+  });
+
+  el("btn-export-csv")?.addEventListener("click", () => exportHistoryCsv());
+
+  // "/" focuses history search when the drawer is open
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "/") return;
+    if (isEditableTarget(e.target)) return;
+    if (!el("app-drawer")?.classList.contains("open")) return;
+    e.preventDefault();
+    el("history-search")?.focus();
+  });
+}
+
 function bindAllEvents() {
   bindDropZoneEvents();
   bindFileTableEvents();
@@ -476,4 +641,5 @@ function bindAllEvents() {
   bindModalEvents();
   bindFilePreviewEvents();
   bindBulkEvents();
+  bindHistoryFilterEvents();
 }

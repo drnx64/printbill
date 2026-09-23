@@ -181,8 +181,8 @@ async function processUploadedFileAsync(file) {
   const fileName = stripExtension(file.name);
   const copies = parseInt(el("default-copies")?.value) || state.settings.defaultCopies;
 
-  const colorMode = state.lastColorMode || "bw";
-  const paperSize = state.lastPaperSize || "short";
+  const colorMode = resolveDefaultColorMode();
+  const paperSize = resolveDefaultPaperSize();
   const unitPrice = getPriceForItem(colorMode, paperSize);
 
   const item = {

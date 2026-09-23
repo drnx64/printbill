@@ -13,6 +13,8 @@ function showModal(options = {}) {
 
   if (!overlay || !contentEl || !titleEl || !bodyEl || !footerEl) return;
 
+  state._modalReturnFocus = document.activeElement;
+
   // Reset classes
   contentEl.className = "modal-content";
   if (options.modalClass) {
@@ -61,6 +63,11 @@ function closeModal() {
   const overlay = el("global-modal-overlay");
   if (overlay) overlay.classList.remove("open");
   document.body.style.overflow = "";
+  const ret = state._modalReturnFocus;
+  state._modalReturnFocus = null;
+  if (ret && typeof ret.focus === "function" && ret.isConnected) {
+    try { ret.focus(); } catch { /* element unfocusable */ }
+  }
 }
 
 // ─── Processing Overlay ─────────────────────────────────────────────────────
@@ -206,7 +213,7 @@ function updateClock() {
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
 
-function showToast(message, type = "success") {
+function showToast(message, type = "success", action = null) {
   const container = el("toast-container");
   if (!container) return;
 
@@ -223,12 +230,25 @@ function showToast(message, type = "success") {
     role: "alert",
   });
   toast.innerHTML = (icons[type] || icons.info) + `<span>${message}</span>`;
+  if (action) {
+    const btn = buildElement("button", {
+      className: "toast-action",
+      textContent: action.label || "Undo",
+    });
+    btn.addEventListener("click", () => {
+      action.onClick?.();
+      toast.remove();
+    });
+    toast.appendChild(btn);
+  }
   container.appendChild(toast);
 
+  const duration = action ? 6000 : TOAST_DURATION_MS;
   setTimeout(() => {
+    if (!toast.isConnected) return;
     toast.style.animation = `toast-out 0.2s ease-in forwards`;
     setTimeout(() => toast.remove(), 200);
-  }, TOAST_DURATION_MS);
+  }, duration);
 }
 
 // ─── File Table Rendering ────────────────────────────────────────────────────
@@ -267,9 +287,14 @@ function refreshItemRow(id) {
   const pagesInputClass = item.needsPageEntry ? "num-input warn" : "num-input";
   const pagesValue = item.pages > 0 ? item.pages : "";
 
+  const nameText = truncateText(item.fileName, 64);
   const nameContent = item.isManual
     ? `<input type="text" class="row-name-input" value="${item.fileName}" data-id="${id}" data-field="fileName" />`
-    : `<span class="file-name-text clickable" data-preview-id="${id}" title="${item.fileName} — click to preview">${item.fileName}</span>`;
+    : `<span class="file-name-text clickable" data-preview-id="${id}" title="${nameText} — click to preview, double-click to rename">${nameText}</span>`;
+  const unitValue = (Number(item.unitPrice) || 0).toFixed(2);
+  const unitTitle = item.isCustomPrice
+    ? "Custom price — double-click to reset to matrix"
+    : "Unit price (₱/page) — type to override, double-click to reset";
 
   const progressBarHtml = item._processing
     ? `<div class="row-progress"><div class="row-progress-fill" style="width:${item._processingPct || 0}%"></div></div><div class="row-stage">${item._processingStage || "0%"}</div>`
@@ -288,7 +313,10 @@ function refreshItemRow(id) {
   tr.innerHTML = `
     <td style="color:var(--text-3);font-size:12px;font-family:var(--font-mono)">${rowIndex}</td>
     <td class="file-name-cell">
-      ${nameContent}
+      <div class="file-name-row">
+        ${nameContent}
+        ${item.isManual ? "" : `<button class="dup-btn" data-id="${id}" title="Duplicate row" aria-label="Duplicate row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>`}
+      </div>
       ${progressBarHtml}
       <div class="file-meta">${fileTypePill}${metaPills}${isActive ? '<span class="meta-pill pill-discount">✦ Tier</span>' : ""}</div>
     </td>
@@ -306,6 +334,10 @@ function refreshItemRow(id) {
       <input type="number" class="num-input" value="${item.copies}" min="1"
         data-id="${id}" data-field="copies" />
     </td>
+    <td>
+      <input type="number" class="num-input unit-input${item.isCustomPrice ? " custom" : ""}" value="${unitValue}" min="0" step="0.25"
+        data-id="${id}" data-field="unitPrice" title="${unitTitle}" />
+    </td>
     <td class="total-cell" id="total-${id}">${formatPeso(rowTotal)}</td>
     <td class="remove-cell">
       <button class="remove-btn" data-id="${id}" title="Remove item">
@@ -317,6 +349,9 @@ function refreshItemRow(id) {
 
 function buildMetaPills(item) {
   const pills = [];
+  if (item.isCustomPrice) {
+    pills.push('<span class="meta-pill pill-custom" title="Custom unit price — double-click the Unit cell to reset to matrix price">Custom ₱</span>');
+  }
   if (item.isManual) {
     pills.push('<span class="meta-pill pill-estimated">Manual</span>');
   } else {
@@ -356,8 +391,11 @@ function refreshAllRows() {
 }
 
 function removeItemFromState(id) {
-  const removed = state.fileItems.find((i) => i.id === id);
-  state.fileItems = state.fileItems.filter((i) => i.id !== id);
+  const idx = state.fileItems.findIndex((i) => i.id === id);
+  if (idx < 0) return;
+  const removed = state.fileItems[idx];
+  state._lastRemoved = { item: removed, index: idx };
+  state.fileItems.splice(idx, 1);
   const tr = el(`row-${id}`);
   if (tr) {
     tr.style.opacity = "0";
@@ -372,14 +410,64 @@ function removeItemFromState(id) {
   updateTotals();
   updateExpressCard();
   updateInvoicePreview();
+  showToast(`Removed “${truncateText(removed.fileName, 24)}”`, "info", {
+    label: "Undo",
+    onClick: undoRemoveItem,
+  });
+}
+
+function undoRemoveItem() {
+  const stash = state._lastRemoved;
+  if (!stash) return;
+  state._lastRemoved = null;
+  const { item, index } = stash;
+  if (findItemById(item.id)) return;
+  state.fileItems.splice(Math.min(index, state.fileItems.length), 0, item);
+  const tbody = el("file-table-body");
+  const tr = buildElement("tr", { className: "file-row", id: `row-${item.id}` });
+  const refNode = tbody.children[Math.min(index, tbody.children.length)] || null;
+  tbody.insertBefore(tr, refNode);
+  refreshAllRows();
+  el("file-table-container").style.display = "block";
+  showCompactDropZone();
+  updateTotals();
+  updateExpressCard();
+  updateInvoicePreview();
+  showToast("Row restored", "success");
+}
+
+function duplicateItem(id) {
+  const src = findItemById(id);
+  if (!src) return;
+  const idx = state.fileItems.indexOf(src);
+  const copy = { ...src, id: state.nextItemId++ };
+  delete copy._processing;
+  delete copy._processingPct;
+  delete copy._processingStage;
+  state.fileItems.splice(idx + 1, 0, copy);
+  state._lastRemoved = null;
+  const srcTr = el(`row-${id}`);
+  const tr = buildElement("tr", { className: "file-row", id: `row-${copy.id}` });
+  if (srcTr && srcTr.parentNode) {
+    srcTr.parentNode.insertBefore(tr, srcTr.nextSibling);
+  } else {
+    el("file-table-body").appendChild(tr);
+  }
+  refreshAllRows();
+  el("file-table-container").style.display = "block";
+  showCompactDropZone();
+  updateTotals();
+  updateExpressCard();
+  updateInvoicePreview();
+  showToast("Row duplicated", "info");
 }
 
 function addManualItem() {
   const id = state.nextItemId++;
   const copies =
     parseInt(el("default-copies")?.value) || state.settings.defaultCopies;
-  const colorMode = state.lastColorMode || "bw";
-  const paperSize = state.lastPaperSize || "short";
+  const colorMode = resolveDefaultColorMode();
+  const paperSize = resolveDefaultPaperSize();
   const item = {
     id,
     fileName: "Custom Item",
@@ -393,6 +481,7 @@ function addManualItem() {
     needsPageEntry: false,
   };
   state.fileItems.push(item);
+  state._lastRemoved = null;
   renderFileTableRow(item);
   showCompactDropZone();
   updateTotals();

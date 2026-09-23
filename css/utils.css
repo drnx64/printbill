@@ -19,6 +19,7 @@
 .pill-color { background: var(--blue-dim); color: var(--blue); }
 .pill-filetype { background: var(--bg-hover); color: var(--text-2); font-weight: 700; }
 .pill-discount { background: var(--green-dim); color: var(--green); }
+.pill-custom { background: var(--amber-dim); color: var(--amber); }
 
 /* Dropdown Menu */
 .dropdown-menu {
@@ -137,6 +138,24 @@
 .toast-icon.success { color: var(--green); }
 .toast-icon.error { color: var(--red); }
 .toast-icon.info { color: var(--accent); }
+
+.toast-action {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.toast-action:hover {
+  background: var(--accent);
+  color: #fff;
+}
 
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(20px) scale(0.9); }

@@ -307,6 +307,7 @@ function startNewInvoice() {
 function clearAllInvoiceData() {
   state.fileItems = [];
   state.nextItemId = 1;
+  state._lastRemoved = null;
   el("file-table-body").innerHTML = "";
   el("file-table-container").style.display = "none";
   const expressCard = el("express-card");
@@ -317,7 +318,18 @@ function clearAllInvoiceData() {
   updateInvoicePreview();
 }
 
+function focusPrimaryAction() {
+  const compact = el("drop-zone-compact");
+  const full = el("drop-zone");
+  if (compact && compact.style.display !== "none") {
+    compact.focus();
+  } else if (full) {
+    full.focus();
+  }
+}
+
 function placeOrder() {
+  if (state._isPlacing) return;
   if (state.fileItems.length === 0) {
     showToast("Please upload at least one file before placing an order.", "error");
     el("drop-zone").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -351,14 +363,18 @@ function placeOrder() {
   });
 
   async function executeOrderPlacement() {
+    if (state._isPlacing) return;
+    state._isPlacing = true;
     const nameInput = el("customer-name-input");
+    if (nameInput) nameInput.disabled = true;
     state.customerName = nameInput ? nameInput.value.trim() : "Walk-in";
-    
+
     closeModal(); // Close the name modal
     showProcessing("Placing order...");
     showProcessingProgress();
     updateProcessingProgress(10, 100, "Updating statistics...");
 
+    try {
     // Update Cumulative Stats
     for (const item of state.fileItems) {
       const totalPages = item.pages * item.copies;
@@ -386,11 +402,11 @@ function placeOrder() {
     await sendToDiscordWebhookAsync(state.customerName, state.invoiceRef, totals);
 
     updateProcessingProgress(60, 100, "Listing items...");
-    
+
     setTimeout(() => {
       updateProcessingProgress(80, 100, "Generating Invoice...");
       updateProcessingMessage("Generating Invoice...");
-      
+
       copyInvoiceAsImageAsync().then(() => {
         updateProcessingProgress(100, 100, "Order Placed!");
         updateProcessingMessage("Order Placed!", true);
@@ -404,11 +420,27 @@ function placeOrder() {
           state.invoiceRef = generateRef();
           state.invoiceDate = formatDate(new Date());
           state.customerName = "";
+          state._isPlacing = false;
           updateInvoicePreview();
           setStatus("Ready");
+          focusPrimaryAction();
         }, 1500);
+      }).catch(() => {
+        state._isPlacing = false;
+        hideProcessing();
+        hideProcessingProgress();
+        setStatus("Ready");
+        showToast("Failed to capture invoice", "error");
       });
     }, 800);
+    } catch (err) {
+      console.error("Order placement failed", err);
+      state._isPlacing = false;
+      hideProcessing();
+      hideProcessingProgress();
+      setStatus("Ready");
+      showToast("Failed to place order", "error");
+    }
   }
 
   // Auto-focus the name input, bind Enter key, and populate autocomplete

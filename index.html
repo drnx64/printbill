@@ -51,6 +51,11 @@
         </label>
       </div>
 
+      <!-- New Invoice -->
+      <button class="icon-btn" id="btn-new-invoice-header" aria-label="New invoice" title="New invoice (clears rows, new REF#)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      </button>
+
       <!-- Recent -->
       <button class="icon-btn" id="btn-recent" aria-label="Order History" title="Order History">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -112,6 +117,7 @@
                     <th>Color</th>
                     <th>Pages</th>
                     <th>Copies</th>
+                    <th>Unit</th>
                     <th>Total</th>
                     <th></th>
                   </tr>
@@ -122,7 +128,7 @@
                     <td colspan="3" style="font-size:11px;color:var(--text-2)">
                       Total Printed Pages: <span id="tfoot-total-pages" style="font-family:var(--font-mono);color:var(--text-1);font-weight:600">0</span>
                     </td>
-                    <td colspan="4" style="text-align:right">
+                    <td colspan="5" style="text-align:right">
                       Subtotal: <span id="tfoot-subtotal" style="font-family:var(--font-mono);font-weight:700">₱0.00</span>
                     </td>
                     <td></td>
@@ -370,12 +376,26 @@
   </div>
 
   <div class="drawer-body" id="history-view">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 12px 8px">
-      <span style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Recent Orders</span>
-      <button class="btn-ghost" id="btn-bulk-mode" style="font-size:11px;padding:4px 8px" title="Toggle bulk selection mode">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        Bulk Select
-      </button>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 12px 8px;gap:8px">
+      <span style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Recent Orders <span id="history-count" style="font-family:var(--font-mono);color:var(--text-2)"></span></span>
+      <div style="display:flex;gap:6px">
+        <button class="btn-ghost" id="btn-export-csv" style="font-size:11px;padding:4px 8px" title="Export history as CSV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          CSV
+        </button>
+        <button class="btn-ghost" id="btn-bulk-mode" style="font-size:11px;padding:4px 8px" title="Toggle bulk selection mode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Bulk
+        </button>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;padding:0 12px 8px">
+      <input type="search" id="history-search" class="field-input" placeholder="Search name, ref, date… (press /)" style="font-size:12px;padding:6px 10px;background:var(--bg-input)" aria-label="Search history" />
+      <div style="display:flex;gap:6px" id="history-filters">
+        <button class="btn-ghost history-filter active" data-filter="all" style="font-size:11px;padding:3px 8px">All</button>
+        <button class="btn-ghost history-filter" data-filter="unpaid" style="font-size:11px;padding:3px 8px">Unpaid</button>
+        <button class="btn-ghost history-filter" data-filter="undone" style="font-size:11px;padding:3px 8px">Undone</button>
+      </div>
     </div>
     <div class="history-list" id="history-list">
       <!-- History items will be injected here -->
@@ -473,6 +493,40 @@
       <div class="field-row">
         <label class="field-label" for="default-copies">Default copies per file</label>
         <input type="number" id="default-copies" class="field-input" value="1" min="1" step="1" />
+      </div>
+
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Use default paper &amp; color</div>
+          <div class="toggle-sub">Ignore last-used when adding files</div>
+        </div>
+        <label class="toggle-switch" aria-label="Use default paper and color">
+          <input type="checkbox" id="prefer-defaults" />
+          <div class="toggle-track"><div class="toggle-thumb"></div></div>
+        </label>
+      </div>
+
+      <div id="default-format-rows" style="display:none;flex-direction:column;gap:10px">
+        <div class="field-row">
+          <span class="field-label">Default paper size</span>
+          <input type="hidden" id="default-paper-size" value="short" />
+          <div class="seg-control" data-seg-group="default-paper-size">
+            <button type="button" class="seg-btn" data-seg-field="default-paper-size" data-seg-value="long">Long</button>
+            <button type="button" class="seg-btn active" data-seg-field="default-paper-size" data-seg-value="short">Short</button>
+            <button type="button" class="seg-btn" data-seg-field="default-paper-size" data-seg-value="a4">A4</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Default color mode</span>
+          <input type="hidden" id="default-color-mode" value="bw" />
+          <div class="seg-control" data-seg-group="default-color-mode">
+            <button type="button" class="seg-btn active" data-seg-field="default-color-mode" data-seg-value="bw">B&amp;W</button>
+            <button type="button" class="seg-btn" data-seg-field="default-color-mode" data-seg-value="bw_image">B&amp;W+Img</button>
+            <button type="button" class="seg-btn" data-seg-field="default-color-mode" data-seg-value="color_small">Small</button>
+            <button type="button" class="seg-btn" data-seg-field="default-color-mode" data-seg-value="color_partial">Partial</button>
+            <button type="button" class="seg-btn" data-seg-field="default-color-mode" data-seg-value="color_full">Full</button>
+          </div>
+        </div>
       </div>
 
       <div class="toggle-row">

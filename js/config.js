@@ -79,4 +79,5 @@ const STORAGE_KEYS = {
   qrCode: "ig_qr_code",
   customerNames: "ig_customer_names",
   orderTemplates: "ig_order_templates",
+  draft: "ig_draft",
 };

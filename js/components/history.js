@@ -2,6 +2,61 @@
  * History Management
  */
 
+let historyQuery = "";
+let historyFilter = "all";
+
+function entryMatchesHistoryFilter(entry) {
+  if (historyFilter === "unpaid" && entry.isPaid) return false;
+  if (historyFilter === "undone" && entry.isDone) return false;
+  if (historyQuery) {
+    const hay = `${entry.customerName || ""} ${entry.ref || ""} ${entry.date || ""}`.toLowerCase();
+    if (!hay.includes(historyQuery)) return false;
+  }
+  return true;
+}
+
+window.exportHistoryCsv = function() {
+  const history = readLocalStorage(STORAGE_KEYS.recentInvoices, []);
+  if (!history.length) {
+    showToast("No history to export", "error");
+    return;
+  }
+  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const rows = [[
+    "ref", "date", "customer", "file", "paper", "color",
+    "pages", "copies", "grandTotal", "remarks", "done", "paid", "timestamp",
+  ]];
+  for (const entry of history) {
+    const files = entry.fileItems && entry.fileItems.length ? entry.fileItems : [{}];
+    for (const f of files) {
+      rows.push([
+        entry.ref,
+        entry.date,
+        entry.customerName || "Walk-in",
+        f.fileName || "",
+        PAPER_SIZE_LABELS[f.paperSize] || "",
+        COLOR_MODE_LABELS[f.colorMode] || "",
+        f.pages ?? "",
+        f.copies ?? "",
+        entry.grandTotal ?? "",
+        entry.remarks || "",
+        entry.isDone ? "yes" : "no",
+        entry.isPaid ? "yes" : "no",
+        entry.timestamp ? new Date(entry.timestamp).toISOString() : "",
+      ]);
+    }
+  }
+  const csv = rows.map((r) => r.map(esc).join(",")).join("\r\n");
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `printbill-history-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`Exported ${history.length} order${history.length === 1 ? "" : "s"} to CSV`, "success");
+};
+
 function saveInvoiceToRecentHistory() {
   const totals = computeGrandTotal();
   const snapshot = {
@@ -104,13 +159,32 @@ function renderHistoryList() {
   const history = readLocalStorage(STORAGE_KEYS.recentInvoices, []);
 
   if (history.length === 0) {
+    const emptyCount = el("history-count");
+    if (emptyCount) emptyCount.textContent = "";
     container.innerHTML =
       '<div class="dropdown-empty">No recent invoices</div>';
     return;
   }
 
+  const filtered = history
+    .map((entry, idx) => ({ entry, idx }))
+    .filter(({ entry }) => entryMatchesHistoryFilter(entry));
+
+  const countEl = el("history-count");
+  if (countEl) {
+    countEl.textContent = filtered.length === history.length
+      ? `${history.length}`
+      : `${filtered.length} / ${history.length}`;
+  }
+
+  if (filtered.length === 0) {
+    container.innerHTML =
+      '<div class="dropdown-empty">No matching invoices</div>';
+    return;
+  }
+
   container.innerHTML = "";
-  history.forEach((entry, idx) => {
+  filtered.forEach(({ entry, idx }) => {
     const item = buildElement("div", {
       className: `history-item${entry.isDone ? " is-done" : ""}${entry.isPaid ? " is-paid" : ""}`,
       id: `history-item-${idx}`,

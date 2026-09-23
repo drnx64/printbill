@@ -30,6 +30,18 @@ function getPricingMatrixValues() {
   return matrix;
 }
 
+function resolveDefaultPaperSize() {
+  return state.settings.preferDefaults
+    ? state.settings.defaultPaperSize
+    : (state.lastPaperSize || "short");
+}
+
+function resolveDefaultColorMode() {
+  return state.settings.preferDefaults
+    ? state.settings.defaultColorMode
+    : (state.lastColorMode || "bw");
+}
+
 /**
  * Billing Calculations
  */

@@ -17,6 +17,9 @@ const state = {
     showUnitPrice: true,
     showModeOnInvoice: true,
     discordWebhookUrl: "",
+    preferDefaults: false,
+    defaultPaperSize: "short",
+    defaultColorMode: "bw",
   },
   lastPaperSize: "short",
   lastColorMode: "bw",
@@ -41,4 +44,7 @@ const state = {
   orderTemplates: [],
   _previewItemId: null,
   _previewPage: 0,
+  _lastRemoved: null,
+  _isPlacing: false,
+  _modalReturnFocus: null,
 };

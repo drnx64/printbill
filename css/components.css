@@ -697,22 +697,25 @@
 }
 /* th:nth-child(2) File Name: no width — absorbs remaining space */
 .file-table th:nth-child(3) {
-  width: 12%;
+  width: 11%;
 }
 .file-table th:nth-child(4) {
-  width: 15%;
+  width: 13%;
 }
 .file-table th:nth-child(5) {
-  width: 6%;
+  width: 5%;
 }
 .file-table th:nth-child(6) {
-  width: 6%;
+  width: 5%;
 }
 .file-table th:nth-child(7) {
+  width: 7%;
+}
+.file-table th:nth-child(8) {
   /* Excel-style autofit: width set from content by autofitTotalColumn() */
   width: var(--total-col-w, 64px);
 }
-.file-table th:nth-child(8) {
+.file-table th:nth-child(9) {
   /* Fixed px reservation so remove-btn never gets clipped on narrow screens */
   width: 36px;
 }
@@ -796,6 +799,17 @@
 .file-name-cell {
   max-width: 100%;
 }
+.file-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.file-name-row .file-name-text,
+.file-name-row .row-name-input {
+  flex: 1;
+  min-width: 0;
+}
 .file-name-text {
   font-weight: 500;
   white-space: nowrap;
@@ -813,6 +827,44 @@
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.dup-btn {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+.file-row:hover .dup-btn {
+  opacity: 1;
+}
+.dup-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+  border-color: var(--border);
+}
+.dup-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Unit price override input */
+.file-table .unit-input {
+  width: 100%;
+  font-size: 12px;
+}
+.unit-input.custom {
+  border-color: var(--amber);
+  color: var(--amber);
 }
 
 .file-meta {
@@ -1130,4 +1182,11 @@
   gap: 8px;
   margin-top: 10px;
   flex-wrap: wrap;
+}
+
+/* History filter chips */
+.history-filter.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
 }

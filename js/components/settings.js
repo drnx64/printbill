@@ -16,6 +16,9 @@ async function persistSettingsToStorage() {
       showModeOnInvoice: state.settings.showModeOnInvoice,
       discordWebhookUrl: state.settings.discordWebhookUrl,
       discountTiers: state.discountTiers,
+      preferDefaults: state.settings.preferDefaults,
+      defaultPaperSize: state.settings.defaultPaperSize,
+      defaultColorMode: state.settings.defaultColorMode,
     }),
     writeDb(STORAGE_KEYS.pricing, state.pricing),
     writeDb(STORAGE_KEYS.pricingStandard, state.pricingStandard),
@@ -31,6 +34,11 @@ async function persistSettingsToStorage() {
     writeDb(STORAGE_KEYS.pricingVersion, PRICING_VERSION),
     writeDb(STORAGE_KEYS.lastPaperSize, state.lastPaperSize),
     writeDb(STORAGE_KEYS.lastColorMode, state.lastColorMode),
+    writeDb(STORAGE_KEYS.draft, {
+      invoiceRef: state.invoiceRef,
+      invoiceDate: state.invoiceDate,
+      remarks: el("remarks")?.value || "",
+    }),
   ]);
 }
 
@@ -49,6 +57,7 @@ async function loadSettingsFromStorage() {
     pricingVersion,
     lastPaperSize,
     lastColorMode,
+    draft,
   ] = await Promise.all([
     readDb(STORAGE_KEYS.shopInfo),
     readDb(STORAGE_KEYS.settings),
@@ -63,6 +72,7 @@ async function loadSettingsFromStorage() {
     readDb(STORAGE_KEYS.pricingVersion, 0),
     readDb(STORAGE_KEYS.lastPaperSize, "short"),
     readDb(STORAGE_KEYS.lastColorMode, "bw"),
+    readDb(STORAGE_KEYS.draft),
   ]);
 
   if (shopInfo) Object.assign(state.shopInfo, shopInfo);
@@ -78,11 +88,26 @@ async function loadSettingsFromStorage() {
     state.settings.showUnitPrice = settings.showUnitPrice ?? true;
     state.settings.showModeOnInvoice = settings.showModeOnInvoice ?? true;
     state.settings.discordWebhookUrl = settings.discordWebhookUrl ?? "";
+    state.settings.preferDefaults = settings.preferDefaults ?? false;
+    state.settings.defaultPaperSize = settings.defaultPaperSize ?? "short";
+    state.settings.defaultColorMode = settings.defaultColorMode ?? "bw";
     if (settings.discountTiers) state.discountTiers = settings.discountTiers;
   }
 
   state.lastPaperSize = lastPaperSize || "short";
   state.lastColorMode = lastColorMode || "bw";
+
+  // Restore draft (REF# / date / remarks) so half-saved invoices survive reloads
+  state._hadDraft = false;
+  if (draft && typeof draft === "object") {
+    if (draft.invoiceRef) state.invoiceRef = draft.invoiceRef;
+    if (draft.invoiceDate) state.invoiceDate = draft.invoiceDate;
+    if (draft.remarks) {
+      const remarksEl = el("remarks");
+      if (remarksEl) remarksEl.value = draft.remarks;
+      state._hadDraft = true;
+    }
+  }
 
   // Force-apply new default pricing matrix when PRICING_VERSION changes
   const needsPricingReset = (pricingVersion || 0) < PRICING_VERSION;
@@ -100,6 +125,7 @@ async function loadSettingsFromStorage() {
     state.fileItems = savedItems;
     if (state.fileItems.length > 0) {
       state.nextItemId = Math.max(...state.fileItems.map((i) => i.id)) + 1;
+      state._hadDraft = true;
     }
   }
 
@@ -187,7 +213,9 @@ function toggleKMode(enabled) {
   applyPricingMatrixToUI();
 
   for (const item of state.fileItems) {
-    item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+    if (!item.isCustomPrice) {
+      item.unitPrice = getPriceForItem(item.colorMode, item.paperSize);
+    }
   }
 
   refreshAllRows();
@@ -302,6 +330,9 @@ function resetSettingsToDefaults() {
         showUnitPrice: true,
         showModeOnInvoice: true,
         discordWebhookUrl: "",
+        preferDefaults: false,
+        defaultPaperSize: "short",
+        defaultColorMode: "bw",
       };
       state.shopInfo = {
         name: "Printing Shop",
@@ -338,6 +369,17 @@ function loadSettingsIntoDrawer() {
   el("express-mode").checked = state.settings.isExpressMode;
   if (el("show-unit-price")) el("show-unit-price").checked = state.settings.showUnitPrice;
   if (el("show-mode-col")) el("show-mode-col").checked = state.settings.showModeOnInvoice;
+  if (el("prefer-defaults")) el("prefer-defaults").checked = state.settings.preferDefaults;
+  if (el("default-paper-size")) el("default-paper-size").value = state.settings.defaultPaperSize;
+  if (el("default-color-mode")) el("default-color-mode").value = state.settings.defaultColorMode;
+  const formatRows = el("default-format-rows");
+  if (formatRows) formatRows.style.display = state.settings.preferDefaults ? "flex" : "none";
+  document.querySelectorAll('[data-seg-group="default-paper-size"] .seg-btn').forEach((b) => {
+    b.classList.toggle("active", b.dataset.segValue === state.settings.defaultPaperSize);
+  });
+  document.querySelectorAll('[data-seg-group="default-color-mode"] .seg-btn').forEach((b) => {
+    b.classList.toggle("active", b.dataset.segValue === state.settings.defaultColorMode);
+  });
 
   if (el("discord-webhook")) el("discord-webhook").value = state.settings.discordWebhookUrl || "";
 
@@ -365,6 +407,9 @@ function saveSettingsFromDrawer() {
   state.settings.isExpressMode = el("express-mode").checked;
   if (el("show-unit-price")) state.settings.showUnitPrice = el("show-unit-price").checked;
   if (el("show-mode-col")) state.settings.showModeOnInvoice = el("show-mode-col").checked;
+  if (el("prefer-defaults")) state.settings.preferDefaults = el("prefer-defaults").checked;
+  if (el("default-paper-size")) state.settings.defaultPaperSize = el("default-paper-size").value || "short";
+  if (el("default-color-mode")) state.settings.defaultColorMode = el("default-color-mode").value || "bw";
   state.settings.discordWebhookUrl = el("discord-webhook") ? el("discord-webhook").value.trim() : "";
 
   el("tax-rate-sub").textContent = `${state.settings.taxRate}%`;
@@ -387,6 +432,11 @@ function applyLoadedSettingsToUI() {
   el("express-mode").checked = state.settings.isExpressMode;
   if (el("show-unit-price")) el("show-unit-price").checked = state.settings.showUnitPrice;
   if (el("show-mode-col")) el("show-mode-col").checked = state.settings.showModeOnInvoice;
+  if (el("prefer-defaults")) el("prefer-defaults").checked = state.settings.preferDefaults;
+  if (el("default-paper-size")) el("default-paper-size").value = state.settings.defaultPaperSize;
+  if (el("default-color-mode")) el("default-color-mode").value = state.settings.defaultColorMode;
+  const fmtRows = el("default-format-rows");
+  if (fmtRows) fmtRows.style.display = state.settings.preferDefaults ? "flex" : "none";
 
   el("tax-rate-sub").textContent = `${state.settings.taxRate}%`;
   el("tax-rate-row").style.display = state.settings.isTaxEnabled ? "flex" : "none";
@@ -420,19 +470,18 @@ function renderTemplates() {
     `;
     container.appendChild(row);
   }
+}
 
-  container.addEventListener("click", (e) => {
-    const btn = e.target.closest(".tier-remove-btn");
-    if (btn) {
-      const idx = parseInt(btn.dataset.template);
-      if (!isNaN(idx)) {
-        state.orderTemplates.splice(idx, 1);
-        persistSettingsToStorage();
-        renderTemplates();
-        showToast("Template removed", "info");
-      }
-    }
-  });
+// Delegated once at bind time — never inside renderTemplates (listeners used to stack)
+function handleTemplateListClick(e) {
+  const btn = e.target.closest(".tier-remove-btn[data-template]");
+  if (!btn || !e.currentTarget.contains(btn)) return;
+  const idx = parseInt(btn.dataset.template);
+  if (isNaN(idx)) return;
+  state.orderTemplates.splice(idx, 1);
+  persistSettingsToStorage();
+  renderTemplates();
+  showToast("Template removed", "info");
 }
 
 function saveCurrentAsTemplate() {

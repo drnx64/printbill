@@ -39,7 +39,17 @@ async function init() {
   // Bind all events
   bindAllEvents();
 
-  setStatus("Ready");
+  if (state._hadDraft) {
+    const n = state.fileItems.length;
+    const parts = [];
+    if (n > 0) parts.push(`${n} item${n === 1 ? "" : "s"}`);
+    if (el("remarks")?.value.trim()) parts.push("remarks");
+    showToast(`Draft restored — ${parts.join(" & ")}`, "info");
+    setStatus("Draft restored", "unsaved");
+    setTimeout(() => setStatus("Ready"), 3000);
+  } else {
+    setStatus("Ready");
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
