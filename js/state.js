@@ -15,6 +15,7 @@ const state = {
     isKMode: false,
     isExpressMode: false,
     showUnitPrice: true,
+    showModeOnInvoice: true,
     discordWebhookUrl: "",
   },
   lastPaperSize: "short",

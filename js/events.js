@@ -407,8 +407,6 @@ function bindHeaderEvents() {
   }
   
   el("btn-recent")?.addEventListener("click", () => openDrawer("history"));
-  el("btn-revenue-dashboard")?.addEventListener("click", () => showRevenueDashboard());
-  el("btn-daily-summary")?.addEventListener("click", () => showDailySummary());
   el("btn-clear-recent-history")?.addEventListener("click", () => clearAllHistory());
 }
 

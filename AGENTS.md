@@ -16,9 +16,9 @@ js/state.js         — Global mutable state object (fileItems, settings, pricin
 js/core/billing.js  — Price calculations, discount tiers, grand total
 js/core/files.js    — PDF/DOCX page count detection (pdf.js, mammoth, JSZip)
 js/core/invoice.js  — Invoice preview rendering, image capture (html2canvas), exports
-js/components/      — ui.js (modals, toasts, table), settings.js, history.js, dashboard.js
+js/components/      — ui.js (modals, toasts, table), settings.js, history.js
 js/events.js        — All event binding (bindAllEvents called from main.js)
-css/                — Modular CSS: tokens, layout, components, drawer, invoice, dashboard
+css/                — Modular CSS: tokens, layout, components, drawer, invoice
 lib/                — Vendored libraries (pdf.js, jszip, mammoth, html2canvas)
 ```
 

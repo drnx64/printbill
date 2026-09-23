@@ -41,6 +41,7 @@ function applyUnitPriceVisibility() {
   const preview = el("invoice-preview");
   if (!preview) return;
   preview.classList.toggle("hide-unit-price", !state.settings.showUnitPrice);
+  preview.classList.toggle("hide-mode-col", !state.settings.showModeOnInvoice);
 }
 
 function updateInvoiceHeader() {
@@ -77,7 +78,7 @@ function updateInvoiceLineItems() {
     tr.innerHTML = `
       <td class="inv-item-name">${truncateText(item.fileName, 32)}${item.isManual ? ' <span style="font-size:9px;color:#a09a94">[manual]</span>' : ""}</td>
       <td class="inv-size">${sizeLabel}</td>
-      <td class="inv-mode"><span style="color:${modeInfo.color};font-weight:600">${modeInfo.label}</span></td>
+      <td class="inv-mode inv-mode-col"><span style="color:${modeInfo.color};font-weight:600">${modeInfo.label}</span></td>
       <td class="inv-num">${item.pages}</td>
       <td class="inv-num">${item.copies}</td>
       <td class="inv-price inv-unit-col">${formatPeso(item.unitPrice)}</td>

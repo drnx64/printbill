@@ -17,6 +17,7 @@
 }
 
 .hide-unit-price .inv-unit-col { display: none; }
+.hide-mode-col .inv-mode-col { display: none; }
 
 @media print {
   @page {

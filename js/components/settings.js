@@ -13,6 +13,7 @@ async function persistSettingsToStorage() {
       isKMode: state.settings.isKMode,
       isExpressMode: state.settings.isExpressMode,
       showUnitPrice: state.settings.showUnitPrice,
+      showModeOnInvoice: state.settings.showModeOnInvoice,
       discordWebhookUrl: state.settings.discordWebhookUrl,
       discountTiers: state.discountTiers,
     }),
@@ -75,6 +76,7 @@ async function loadSettingsFromStorage() {
     state.settings.isKMode = settings.isKMode ?? false;
     state.settings.isExpressMode = settings.isExpressMode ?? false;
     state.settings.showUnitPrice = settings.showUnitPrice ?? true;
+    state.settings.showModeOnInvoice = settings.showModeOnInvoice ?? true;
     state.settings.discordWebhookUrl = settings.discordWebhookUrl ?? "";
     if (settings.discountTiers) state.discountTiers = settings.discountTiers;
   }
@@ -298,6 +300,7 @@ function resetSettingsToDefaults() {
         isKMode: false,
         isExpressMode: false,
         showUnitPrice: true,
+        showModeOnInvoice: true,
         discordWebhookUrl: "",
       };
       state.shopInfo = {
@@ -334,6 +337,7 @@ function loadSettingsIntoDrawer() {
   el("vat-show-invoice").checked = state.settings.isVatVisibleOnInvoice;
   el("express-mode").checked = state.settings.isExpressMode;
   if (el("show-unit-price")) el("show-unit-price").checked = state.settings.showUnitPrice;
+  if (el("show-mode-col")) el("show-mode-col").checked = state.settings.showModeOnInvoice;
 
   if (el("discord-webhook")) el("discord-webhook").value = state.settings.discordWebhookUrl || "";
 
@@ -360,6 +364,7 @@ function saveSettingsFromDrawer() {
   state.settings.isVatVisibleOnInvoice = el("vat-show-invoice").checked;
   state.settings.isExpressMode = el("express-mode").checked;
   if (el("show-unit-price")) state.settings.showUnitPrice = el("show-unit-price").checked;
+  if (el("show-mode-col")) state.settings.showModeOnInvoice = el("show-mode-col").checked;
   state.settings.discordWebhookUrl = el("discord-webhook") ? el("discord-webhook").value.trim() : "";
 
   el("tax-rate-sub").textContent = `${state.settings.taxRate}%`;
@@ -381,6 +386,7 @@ function applyLoadedSettingsToUI() {
   el("header-kmode-toggle").checked = state.settings.isKMode;
   el("express-mode").checked = state.settings.isExpressMode;
   if (el("show-unit-price")) el("show-unit-price").checked = state.settings.showUnitPrice;
+  if (el("show-mode-col")) el("show-mode-col").checked = state.settings.showModeOnInvoice;
 
   el("tax-rate-sub").textContent = `${state.settings.taxRate}%`;
   el("tax-rate-row").style.display = state.settings.isTaxEnabled ? "flex" : "none";
