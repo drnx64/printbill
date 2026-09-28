@@ -205,7 +205,7 @@ async function copyInvoiceAsImageAsync() {
   }
 }
 
-async function attemptCopyCanvasToClipboard(canvas) {
+async function attemptCopyCanvasToClipboard(canvas, opts = {}) {
   const blob = await new Promise((resolve) =>
     canvas.toBlob(resolve, "image/png"),
   );
@@ -216,14 +216,16 @@ async function attemptCopyCanvasToClipboard(canvas) {
         new ClipboardItem({ "image/png": blob }),
       ]);
       showToast("✓ Copied to clipboard!", "success");
-      return;
+      return true;
     } catch {
       // Fall through
     }
   }
 
+  if (opts.skipDownloadFallback) return false;
   triggerPngDownload(canvas);
   showToast("📥 Saved as PNG (clipboard unavailable)", "info");
+  return false;
 }
 
 function triggerPngDownload(canvas) {
@@ -242,6 +244,199 @@ async function saveAsPngAsync() {
   } catch {
     showToast("Failed to save PNG", "error");
   }
+}
+
+// ─── Auto-save invoice image (File System Access → Downloads fallback) ──────
+
+function sanitizeFilename(name) {
+  return (
+    String(name || "")
+      .replace(/[\\/:*?"<>|]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 80) || "invoice"
+  );
+}
+
+function supportsFileSystemAccess() {
+  return typeof window.showDirectoryPicker === "function";
+}
+
+async function chooseSaveFolder() {
+  if (!supportsFileSystemAccess()) {
+    showToast("Folder picker not available in this browser", "error");
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({
+      id: "printbill-save",
+      mode: "readwrite",
+      startIn: "documents",
+    });
+    await writeDb(STORAGE_KEYS.saveFolder, handle);
+    await updateSaveFolderStatus();
+    showToast(`✓ Saving to ${handle.name || "folder"}\\Printing`, "success");
+  } catch {
+    /* user cancelled the picker */
+  }
+}
+
+async function clearSaveFolder() {
+  await writeDb(STORAGE_KEYS.saveFolder, null);
+  await updateSaveFolderStatus();
+  showToast("Save folder cleared — images go to Downloads\\Printing", "info");
+}
+
+async function updateSaveFolderStatus() {
+  const status = el("save-folder-status");
+  if (!status) return;
+  if (!supportsFileSystemAccess()) {
+    status.textContent = "Not supported — images save via download";
+    return;
+  }
+  let handle = null;
+  try {
+    handle = await readDb(STORAGE_KEYS.saveFolder, null);
+  } catch {
+    handle = null;
+  }
+  if (!handle) {
+    status.textContent = "Not set — saves to Downloads\\Printing";
+    return;
+  }
+  let perm = "prompt";
+  try {
+    perm = await handle.queryPermission({ mode: "readwrite" });
+  } catch {
+    perm = "prompt";
+  }
+  status.textContent =
+    perm === "granted"
+      ? `${handle.name || "folder"}\\Printing ✓`
+      : `${handle.name || "folder"}\\Printing — will ask to re-approve on next order`;
+}
+
+// Called directly from the Place Order click while the browser's transient user
+// activation is still alive, so a lost folder permission (e.g. after a Chrome
+// restart) can be re-granted with one prompt instead of falling back silently.
+async function ensureSaveFolderPermission() {
+  let handle = null;
+  try {
+    handle = await readDb(STORAGE_KEYS.saveFolder, null);
+  } catch {
+    return false;
+  }
+  if (!handle) return false;
+  try {
+    if ((await handle.queryPermission({ mode: "readwrite" })) === "granted") {
+      return true;
+    }
+    return (await handle.requestPermission({ mode: "readwrite" })) === "granted";
+  } catch {
+    return false;
+  }
+}
+
+function canvasToJpegBlob(canvas) {
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+}
+
+// Saves `${transactionId}-${customerName}.jpg`. Returns { location, path,
+// folderConfigured } or null on failure. Never throws — an unsaved image must
+// not block order placement.
+async function writeInvoiceImageAsync(canvas, transactionId, customerName) {
+  const filename = sanitizeFilename(`${transactionId}-${customerName}`);
+  let handle = null;
+  try {
+    handle = await readDb(STORAGE_KEYS.saveFolder, null);
+  } catch {
+    handle = null;
+  }
+
+  if (handle) {
+    let granted = false;
+    try {
+      granted = (await handle.queryPermission({ mode: "readwrite" })) === "granted";
+    } catch {
+      granted = false;
+    }
+    if (granted) {
+      try {
+        const dir = await handle.getDirectoryHandle("Printing", { create: true });
+        const fileHandle = await dir.getFileHandle(`${filename}.jpg`, {
+          create: true,
+        });
+        const writable = await fileHandle.createWritable();
+        await writable.write(await canvasToJpegBlob(canvas));
+        await writable.close();
+        return {
+          location: "folder",
+          path: `${handle.name || "folder"}\\Printing\\${filename}.jpg`,
+          folderConfigured: true,
+        };
+      } catch (err) {
+        console.warn("Folder save failed — falling back to download", err);
+      }
+    }
+  }
+
+  const blob = await canvasToJpegBlob(canvas);
+  const blobUrl = URL.createObjectURL(blob);
+  try {
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.downloads &&
+      chrome.downloads.download
+    ) {
+      await chrome.downloads.download({
+        url: blobUrl,
+        filename: `Printing/${filename}.jpg`,
+        conflictAction: "uniquify",
+        saveAs: false,
+      });
+      return {
+        location: "downloads",
+        path: `Downloads\\Printing\\${filename}.jpg`,
+        folderConfigured: !!handle,
+      };
+    }
+    const link = document.createElement("a");
+    link.download = `${filename}.jpg`;
+    link.href = blobUrl;
+    link.click();
+    return {
+      location: "downloads",
+      path: `${filename}.jpg`,
+      folderConfigured: !!handle,
+    };
+  } catch (err) {
+    console.error("Invoice image download failed", err);
+    return null;
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  }
+}
+
+// Order flow: capture once, save JPG to disk, then copy PNG to clipboard.
+async function finalizeOrderImageAsync() {
+  const canvas = await captureInvoiceCanvas();
+  let savedInfo = null;
+  try {
+    savedInfo = await writeInvoiceImageAsync(
+      canvas,
+      state.invoiceRef,
+      state.customerName || "Walk-in",
+    );
+  } catch (err) {
+    console.error("Invoice image save failed", err);
+  }
+  const copied = await attemptCopyCanvasToClipboard(canvas, {
+    skipDownloadFallback: true,
+  });
+  if (!copied) {
+    showToast("ℹ Couldn't copy to clipboard — image saved to file", "info");
+  }
+  return savedInfo;
 }
 
 function printInvoice() {
@@ -358,6 +553,8 @@ function placeOrder() {
     type: "confirm",
     confirmText: "Place Order",
     onConfirm: async () => {
+      // Re-grant folder access while this click's user activation is still alive
+      await ensureSaveFolderPermission();
       await executeOrderPlacement();
     }
   });
@@ -404,12 +601,21 @@ function placeOrder() {
     updateProcessingProgress(60, 100, "Listing items...");
 
     setTimeout(() => {
-      updateProcessingProgress(80, 100, "Generating Invoice...");
-      updateProcessingMessage("Generating Invoice...");
+      updateProcessingProgress(80, 100, "Saving invoice image...");
+      updateProcessingMessage("Saving invoice image...");
 
-      copyInvoiceAsImageAsync().then(() => {
+      finalizeOrderImageAsync().then((savedInfo) => {
         updateProcessingProgress(100, 100, "Order Placed!");
         updateProcessingMessage("Order Placed!", true);
+        if (savedInfo) {
+          showToast(`✓ Saved ${savedInfo.path}`, "success");
+          if (savedInfo.location === "downloads" && savedInfo.folderConfigured) {
+            showToast(
+              "ℹ Folder access expired — re-approve it in Settings to save to Documents",
+              "info",
+            );
+          }
+        }
         showToast(`✓ Order placed! Collect ${formatPeso(totals.grandTotal)}`, "success");
         setStatus("Order Placed", "copied");
 

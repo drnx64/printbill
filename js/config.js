@@ -81,6 +81,7 @@ const STORAGE_KEYS = {
   orderTemplates: "ig_order_templates",
   draft: "ig_draft",
   columnWidths: "ig_column_widths",
+  saveFolder: "ig_save_folder",
 };
 
 // Resizable tables: element id + per-column minimum drag widths

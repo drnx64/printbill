@@ -496,6 +496,8 @@ function bindSettingsEvents() {
   
   el("btn-reset-settings")?.addEventListener("click", resetSettingsToDefaults);
   el("btn-reset-col-widths")?.addEventListener("click", resetAllColumnWidths);
+  el("btn-choose-save-folder")?.addEventListener("click", chooseSaveFolder);
+  el("btn-clear-save-folder")?.addEventListener("click", clearSaveFolder);
   el("btn-add-template")?.addEventListener("click", saveCurrentAsTemplate);
   el("template-list")?.addEventListener("click", handleTemplateListClick);
 

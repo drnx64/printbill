@@ -9,7 +9,7 @@
   "action": {
     "default_title": "PrintBill"
   },
-  "permissions": ["storage"],
+  "permissions": ["storage", "downloads"],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self';"
   }

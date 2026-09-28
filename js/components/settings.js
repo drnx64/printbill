@@ -383,6 +383,8 @@ function loadSettingsIntoDrawer() {
 
   if (el("discord-webhook")) el("discord-webhook").value = state.settings.discordWebhookUrl || "";
 
+  updateSaveFolderStatus();
+
   if (el("qr-preview-img")) el("qr-preview-img").src = state.qrCode || "";
 
   applyPricingMatrixToUI();
