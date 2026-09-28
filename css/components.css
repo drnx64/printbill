@@ -680,7 +680,8 @@
 
 /* File Table */
 .file-table-wrap {
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   border-radius: 8px;
   border: 1px solid var(--border);
 }
@@ -690,29 +691,31 @@
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 13px;
+  min-width: 560px;
 }
 
 .file-table th:nth-child(1) {
-  width: 3%;
+  width: 28px;
 }
 /* th:nth-child(2) File Name: no width — absorbs remaining space */
 .file-table th:nth-child(3) {
-  width: 11%;
+  width: 10%;
 }
 .file-table th:nth-child(4) {
-  width: 13%;
+  width: 12%;
 }
 .file-table th:nth-child(5) {
-  width: 5%;
+  width: 56px;
 }
 .file-table th:nth-child(6) {
-  width: 5%;
+  width: 56px;
 }
 .file-table th:nth-child(7) {
-  width: 7%;
+  width: 60px;
 }
 .file-table th:nth-child(8) {
-  /* Excel-style autofit: width set from content by autofitTotalColumn() */
+  /* Excel-style autofit: width set from content by autofitTotalColumn()
+     (skipped when the user has dragged a custom Total width) */
   width: var(--total-col-w, 64px);
 }
 .file-table th:nth-child(9) {
@@ -733,6 +736,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  position: relative;
 }
 
 .file-table td {
@@ -740,6 +744,16 @@
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
   overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .file-table th:nth-child(1) { width: 20px; }
+  .file-table th:nth-child(5) { width: 44px; }
+  .file-table th:nth-child(6) { width: 44px; }
+  .file-table th:nth-child(7) { width: 48px; }
+  .file-table th { padding: 6px 5px; }
+  .file-table td { padding: 6px 5px; }
+  .file-table tfoot td { padding: 6px 5px; }
 }
 
 .file-table tr:last-child td {
@@ -929,6 +943,7 @@
   overflow: hidden;
   border: 1px solid var(--border);
   margin-bottom: 4px;
+  table-layout: fixed;
 }
 
 .pricing-matrix th {
@@ -941,6 +956,13 @@
   color: var(--text-2);
   text-align: center;
   border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.pricing-matrix th:nth-child(2),
+.pricing-matrix th:nth-child(3),
+.pricing-matrix th:nth-child(4) {
+  width: 22%;
 }
 
 .pricing-matrix th:first-child {
@@ -973,6 +995,8 @@
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mode-label.color-mode {
@@ -980,7 +1004,7 @@
 }
 
 .matrix-input {
-  width: 72px;
+  width: 100%;
   padding: 5px 8px;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -990,6 +1014,7 @@
   font-size: 13px;
   text-align: right;
   transition: border-color 0.15s;
+  box-sizing: border-box;
 }
 
 .matrix-input:focus {
@@ -1189,4 +1214,34 @@
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-dim);
+}
+
+/* ─── Resizable column handles (all tables) ─── */
+.col-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 3;
+}
+.col-resizer::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 18%;
+  bottom: 18%;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.col-resizer:hover::after,
+.col-resizer.resizing::after {
+  background: var(--accent);
+}
+.col-resizer.resizing {
+  width: 10px;
 }

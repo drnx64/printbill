@@ -2,6 +2,130 @@
  * UI Components (Modals, Toasts, Clock, Status, Tables)
  */
 
+// ─── Resizable Table Columns (widths persisted to localStorage) ─────────────
+
+let fileTotalHasCustomWidth = false;
+
+function readColumnWidths() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.columnWidths)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function writeColumnWidths(all) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.columnWidths, JSON.stringify(all));
+  } catch {
+    /* storage full */
+  }
+}
+
+function saveColumnWidth(tableKey, th) {
+  const px = parseInt(th.style.width, 10);
+  if (!px) return;
+  const all = readColumnWidths();
+  all[tableKey] = all[tableKey] || {};
+  all[tableKey][th.dataset.colkey] = px;
+  writeColumnWidths(all);
+  if (tableKey === "file" && th.dataset.colkey === "total") {
+    fileTotalHasCustomWidth = true;
+  }
+}
+
+function resetColumnWidth(tableKey, th) {
+  th.style.width = "";
+  const all = readColumnWidths();
+  if (all[tableKey]) {
+    delete all[tableKey][th.dataset.colkey];
+    writeColumnWidths(all);
+  }
+  if (tableKey === "file" && th.dataset.colkey === "total") {
+    fileTotalHasCustomWidth = !!(readColumnWidths().file || {}).total;
+    autofitTotalColumn(true);
+  }
+  showToast("Column width reset", "info");
+}
+
+function resetAllColumnWidths() {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.columnWidths);
+  } catch { /* ignore */ }
+  fileTotalHasCustomWidth = false;
+  for (const cfg of Object.values(COLUMN_TABLES)) {
+    const table = el(cfg.tableId);
+    if (!table) continue;
+    table.querySelectorAll("thead th[data-colkey]").forEach((th) => {
+      th.style.width = "";
+    });
+  }
+  autofitTotalColumn(true);
+  showToast("Column widths reset to defaults", "info");
+}
+
+function startColumnResize(e, th, tableKey) {
+  e.preventDefault();
+  e.stopPropagation();
+  const handle = e.currentTarget;
+  const cfg = COLUMN_TABLES[tableKey];
+  const min = (cfg.mins && cfg.mins[th.dataset.colkey]) || 36;
+  const startX = e.clientX;
+  const startW = th.offsetWidth;
+
+  handle.classList.add("resizing");
+  try { handle.setPointerCapture(e.pointerId); } catch { /* capture unsupported */ }
+
+  const onMove = (ev) => {
+    const w = Math.max(min, Math.round(startW + (ev.clientX - startX)));
+    th.style.width = w + "px";
+  };
+  const onUp = (ev) => {
+    handle.classList.remove("resizing");
+    handle.removeEventListener("pointermove", onMove);
+    handle.removeEventListener("pointerup", onUp);
+    handle.removeEventListener("pointercancel", onUp);
+    try { handle.releasePointerCapture(ev.pointerId); } catch { /* released */ }
+    saveColumnWidth(tableKey, th);
+    if (tableKey === "file") autofitTotalColumn();
+  };
+
+  handle.addEventListener("pointermove", onMove);
+  handle.addEventListener("pointerup", onUp);
+  handle.addEventListener("pointercancel", onUp);
+}
+
+function initTableResizers() {
+  const stored = readColumnWidths();
+  fileTotalHasCustomWidth = !!(stored.file || {}).total;
+
+  for (const [tableKey, cfg] of Object.entries(COLUMN_TABLES)) {
+    const table = el(cfg.tableId);
+    if (!table) continue;
+
+    const tableStored = stored[tableKey];
+    if (tableStored) {
+      table.querySelectorAll("thead th[data-colkey]").forEach((th) => {
+        const w = tableStored[th.dataset.colkey];
+        if (w) th.style.width = w + "px";
+      });
+    }
+
+    table.querySelectorAll("thead th[data-colkey]").forEach((th) => {
+      const handle = buildElement("span", {
+        className: "col-resizer",
+        title: "Drag to resize — double-click to reset",
+      });
+      th.appendChild(handle);
+      handle.addEventListener("pointerdown", (e) => startColumnResize(e, th, tableKey));
+      handle.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        resetColumnWidth(tableKey, th);
+      });
+    });
+  }
+}
+
 // ─── Modal System ───────────────────────────────────────────────────────────
 
 function showModal(options = {}) {
@@ -647,7 +771,8 @@ function refreshTotalCell(id) {
 }
 
 // Excel-style autofit: Total column width = widest total value + cell padding
-function autofitTotalColumn() {
+function autofitTotalColumn(force = false) {
+  if (!force && fileTotalHasCustomWidth) return;
   const table = document.querySelector(".file-table");
   if (!table) return;
 

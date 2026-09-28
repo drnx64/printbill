@@ -80,4 +80,27 @@ const STORAGE_KEYS = {
   customerNames: "ig_customer_names",
   orderTemplates: "ig_order_templates",
   draft: "ig_draft",
+  columnWidths: "ig_column_widths",
+};
+
+// Resizable tables: element id + per-column minimum drag widths
+const COLUMN_TABLES = {
+  file: {
+    tableId: "file-table",
+    mins: {
+      num: 18, name: 80, paper: 56, color: 60,
+      pages: 44, copies: 44, unit: 48, total: 48, actions: 36,
+    },
+  },
+  invoice: {
+    tableId: "inv-table",
+    mins: {
+      document: 80, paper: 36, mode: 36, pg: 30,
+      qty: 30, unit: 40, total: 44,
+    },
+  },
+  pricing: {
+    tableId: "pricing-matrix-table",
+    mins: { label: 60, long: 56, short: 56, a4: 56 },
+  },
 };

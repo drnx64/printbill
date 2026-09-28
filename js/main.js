@@ -13,6 +13,9 @@ async function init() {
   applyLoadedSettingsToUI();
   applyPricingMatrixToUI();
 
+  // Restore saved column widths + attach drag handles before first layout
+  initTableResizers();
+
   // Render loaded items
   if (state.fileItems.length > 0) {
     el("file-table-container").style.display = "block";

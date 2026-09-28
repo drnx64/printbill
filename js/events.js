@@ -495,6 +495,7 @@ function bindSettingsEvents() {
   });
   
   el("btn-reset-settings")?.addEventListener("click", resetSettingsToDefaults);
+  el("btn-reset-col-widths")?.addEventListener("click", resetAllColumnWidths);
   el("btn-add-template")?.addEventListener("click", saveCurrentAsTemplate);
   el("template-list")?.addEventListener("click", handleTemplateListClick);
 

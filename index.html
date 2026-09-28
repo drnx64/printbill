@@ -108,18 +108,18 @@
           <!-- File Table -->
           <div id="file-table-container" style="display:none">
             <div class="file-table-wrap">
-              <table class="file-table" aria-label="Uploaded files">
+              <table class="file-table" id="file-table" aria-label="Uploaded files">
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>File Name</th>
-                    <th>Paper</th>
-                    <th>Color</th>
-                    <th>Pages</th>
-                    <th>Copies</th>
-                    <th>Unit</th>
-                    <th>Total</th>
-                    <th></th>
+                    <th data-colkey="num">#</th>
+                    <th data-colkey="name">File Name</th>
+                    <th data-colkey="paper">Paper</th>
+                    <th data-colkey="color">Color</th>
+                    <th data-colkey="pages">Pages</th>
+                    <th data-colkey="copies">Copies</th>
+                    <th data-colkey="unit">Unit</th>
+                    <th data-colkey="total">Total</th>
+                    <th data-colkey="actions"></th>
                   </tr>
                 </thead>
                 <tbody id="file-table-body"></tbody>
@@ -240,16 +240,16 @@
           <hr class="inv-divider" />
 
           <!-- Line Items Table -->
-          <table class="inv-table" aria-label="Invoice line items">
+          <table class="inv-table" id="inv-table" aria-label="Invoice line items">
             <thead>
               <tr>
-                <th>Document</th>
-                <th class="right" style="width:60px">Paper</th>
-                <th class="right inv-mode-col" style="width:64px">Mode</th>
-                <th class="right" style="width:42px">Pg</th>
-                <th class="right" style="width:42px">Qty</th>
-                <th class="right inv-unit-col" style="width:72px">Unit</th>
-                <th class="right" style="width:80px">Total</th>
+                <th data-colkey="document">Document</th>
+                <th class="right" style="width:60px" data-colkey="paper">Paper</th>
+                <th class="right inv-mode-col" style="width:64px" data-colkey="mode">Mode</th>
+                <th class="right" style="width:42px" data-colkey="pg">Pg</th>
+                <th class="right" style="width:42px" data-colkey="qty">Qty</th>
+                <th class="right inv-unit-col" style="width:72px" data-colkey="unit">Unit</th>
+                <th class="right" style="width:80px" data-colkey="total">Total</th>
               </tr>
             </thead>
             <tbody id="inv-items-body">
@@ -437,10 +437,10 @@
       <table class="pricing-matrix" id="pricing-matrix-table" aria-label="Pricing matrix">
         <thead>
           <tr>
-            <th></th>
-            <th>Long</th>
-            <th>Short</th>
-            <th>A4</th>
+            <th data-colkey="label"></th>
+            <th data-colkey="long">Long</th>
+            <th data-colkey="short">Short</th>
+            <th data-colkey="a4">A4</th>
           </tr>
         </thead>
         <tbody>
@@ -656,6 +656,10 @@
         <button class="danger-btn" id="btn-reset-settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
           Reset settings to defaults
+        </button>
+        <button class="danger-btn" id="btn-reset-col-widths" title="Restore default table column widths">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+          Reset column widths
         </button>
       </div>
     </div>
